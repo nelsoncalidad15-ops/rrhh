@@ -1,0 +1,23 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import RRHHDashboard from './components/RRHHDashboard';
+
+export default function App() {
+  const GRADES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=208474053&single=true&output=csv";
+  const RELATORIO_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=914584447&single=true&output=csv";
+  const CONTACTS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=55715729&single=true&output=csv";
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <RRHHDashboard 
+        gradesUrl={GRADES_URL}
+        relatorioUrl={RELATORIO_URL}
+        contactsUrl={CONTACTS_URL}
+        onBack={() => console.log('Back clicked')}
+      />
+    </div>
+  );
+}
