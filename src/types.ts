@@ -8,11 +8,20 @@ export enum LoadingState {
 export interface RelatorioItem {
   nombre: string;
   unidad: string;
+  area: string;
   curso: string;
   claseFecha: string;
   claseHora: string;
   referenciaMeses: string;
   fechaRegistro: string;
+  modalidad?: string;
+  linkCurso?: string;
+}
+
+export interface CoursePhase {
+  curso: string;
+  fase: string;
+  modalidad: string;
 }
 
 export interface CollaboratorContact {

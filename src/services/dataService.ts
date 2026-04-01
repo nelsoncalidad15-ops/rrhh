@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
-import { CourseGrade, RelatorioItem, CollaboratorContact } from '../types';
+import { CourseGrade, RelatorioItem, CollaboratorContact, CoursePhase } from '../types';
 
-const normalizeKey = (key: string) => {
+export const normalizeKey = (key: string) => {
   if (!key) return '';
   return key.toLowerCase()
     .normalize("NFD")
@@ -44,7 +44,8 @@ export const fetchHRGradesData = async (url: string): Promise<CourseGrade[]> => 
             'ID', 'Colaborador', 'Unidad', 'Area', 'Funcion', 'ICF', 
             'Progreso ICF', 'Nombre', 'Sede', 'Departamento', 'Cargo', 
             'Puesto', 'Sector', 'Ubicacion', 'Empleado', 'Legajo', 'DNI',
-            'Email', 'Correo', 'Estado', 'Ingreso', 'Antiguedad'
+            'Email', 'Correo', 'Estado', 'Ingreso', 'Antiguedad', 'nm_curso',
+            'nm_unidad', 'nm_area', 'nm_funcion', 'nm_cargo', 'nm_puesto'
           ];
           const normalizedBasicKeys = new Set(basicInfoKeys.map(normalizeKey));
 
@@ -61,60 +62,70 @@ export const fetchHRGradesData = async (url: string): Promise<CourseGrade[]> => 
             const name = getVal(['Colaborador', 'Nombre', 'Empleado'], 1) || 'Sin Nombre';
             
             // Filter out header row or non-collaborator rows
-            if (name.toLowerCase().includes('colaborador') || name === 'C' || name.trim() === '') return;
+            if (name.toLowerCase().includes('colaborador') || name === 'C' || name.trim() === '' || name === 'Nombre') return;
 
-            const unit = getVal(['Unidad', 'Sede', 'Ubicacion'], 2) || 'Sin Unidad';
+            const rawUnit = getVal(['Unidad', 'Sede', 'Ubicacion'], 0) || 'Sin Unidad';
+            let unit = rawUnit;
+            if (rawUnit.includes('3059')) unit = 'Jujuy';
+            else if (rawUnit.includes('3087')) unit = 'Salta';
+
+            const area = getVal(['Area', 'Departamento', 'Sector'], 2) || 'Sin Area';
             const func = getVal(['Funcion', 'Cargo', 'Puesto'], 3) || 'Sin Funcion';
-            const area = getVal(['Area', 'Departamento', 'Sector'], 4) || 'Sin Area';
             const icf = parseFloat(String(getVal(['ICF', 'Progreso ICF', 'Indice'], 5) || '0').replace('%', '').replace(',', '.')) || 0;
             const id = getVal(['ID', 'Legajo'], 0) || `collab-${index}`;
 
-            const courses: Record<string, number> = {};
-            Object.keys(row).forEach(key => {
+            const rowCourses: Record<string, number> = {};
+            headers.forEach((key, colIdx) => {
+              // User specified courses start at column G (index 6). 
+              // If G is 'nm_curso', we start at index 7 (Column H) to be safe.
+              if (colIdx < 7) return;
+              
               const normKey = normalizeKey(key);
               if (!normalizedBasicKeys.has(normKey) && key.trim() !== '') {
-                const rawVal = String(row[key] || '');
+                const rawVal = String(row[key] || '').trim();
+                // Skip empty cells - this is crucial to isolate courses by function
+                if (rawVal === '' || rawVal === '-' || rawVal.toLowerCase() === 'n/a') return; 
+                
                 const val = parseFloat(rawVal.replace('%', '').replace(',', '.').trim());
-                courses[key] = isNaN(val) ? -1 : val;
+                if (!isNaN(val)) {
+                  rowCourses[key] = val;
+                }
+              }
+            });
+
+            // Filter out invalid courses (additional safety)
+            const filteredCourses: Record<string, number> = {};
+            Object.entries(rowCourses).forEach(([cName, score]) => {
+              if (!cName.startsWith('_') && !/^\d+$/.test(cName.trim())) {
+                filteredCourses[cName] = score;
               }
             });
 
             if (collaboratorMap.has(name)) {
               const existing = collaboratorMap.get(name)!;
-              // Add unique values
+              // Concatenate unique values
               if (!existing.unidad.split(' | ').includes(unit)) existing.unidad += ` | ${unit}`;
               if (!existing.area.split(' | ').includes(area)) existing.area += ` | ${area}`;
               if (!existing.funcion.split(' | ').includes(func)) existing.funcion += ` | ${func}`;
               
-              // Subdivide ICF by function
+              // Update ICF for this specific function
               if (!existing.icfByFunction) existing.icfByFunction = {};
               existing.icfByFunction[func] = Math.max(existing.icfByFunction[func] || 0, icf);
               
-              // Subdivide courses by function
+              // Update courses for this specific function
               if (!existing.coursesByFunction) existing.coursesByFunction = {};
               if (!existing.coursesByFunction[func]) existing.coursesByFunction[func] = {};
               
-              // Merge courses (take highest score)
-              Object.entries(courses).forEach(([cName, score]) => {
-                // Filter out invalid course names (like _3, _4, or just numbers)
-                if (cName.startsWith('_') || /^\d+$/.test(cName.trim())) return;
-                
-                if (score !== -1) {
-                  existing.courses[cName] = Math.max(existing.courses[cName] || 0, score);
-                  existing.coursesByFunction![func][cName] = Math.max(existing.coursesByFunction![func][cName] || 0, score);
-                }
+              Object.entries(filteredCourses).forEach(([cName, score]) => {
+                // Add to global courses and function-specific bucket
+                existing.courses[cName] = Math.max(existing.courses[cName] || 0, score);
+                existing.coursesByFunction![func][cName] = Math.max(existing.coursesByFunction![func][cName] || 0, score);
               });
-              // Update ICF (take average or max)
-              existing.icf = Math.max(existing.icf, icf);
+              
+              // Recalculate overall ICF as average of function ICFs
+              const functionValues = Object.values(existing.icfByFunction) as number[];
+              existing.icf = Math.round(functionValues.reduce((a, b) => a + b, 0) / functionValues.length);
             } else {
-              // Filter out invalid courses for the new entry
-              const filteredCourses: Record<string, number> = {};
-              Object.entries(courses).forEach(([cName, score]) => {
-                if (!cName.startsWith('_') && !/^\d+$/.test(cName.trim())) {
-                  filteredCourses[cName] = score;
-                }
-              });
-
               collaboratorMap.set(name, {
                 id: `${id}-${name}`,
                 colaborador: name,
@@ -202,29 +213,62 @@ export const fetchHRRelatorioData = async (url: string): Promise<RelatorioItem[]
               const colC = row[2] || '';
               
               // If Column C has the pipe format, use it to extract data
-              // Example: Mayo 2026 | Comunicación y Feedback Profesional | 8 de Mayo | 08 de mayo | 13.30 a 17.30hs
+              // Example 1: Mayo 2026 | Comunicación y Feedback Profesional | 8 de Mayo | 08 de mayo | 13.30 a 17.30hs
+              // Example 2: Mayo 2026 | Trabajo en Equipo (Gerentes de Ventas y Postventa) |19 de mayo | 13.30 a 17.30hs
               if (colC.includes('|')) {
-                const parts = colC.split('|').map(p => p.trim());
+                const parts = colC.split('|').map(p => p.trim()).filter(p => p !== '');
+                
+                let curso = parts[1] || row[1] || '';
+                let fecha = '';
+                let hora = '';
+                
+                if (parts.length >= 4) {
+                  // Last part is likely time if it contains 'hs' or ':'
+                  const lastPart = parts[parts.length - 1];
+                  if (lastPart.toLowerCase().includes('hs') || lastPart.includes(':') || /\d+[\.:]\d+/.test(lastPart)) {
+                    hora = lastPart;
+                    fecha = parts[parts.length - 2];
+                  } else {
+                    fecha = lastPart;
+                  }
+                } else if (parts.length === 3) {
+                  fecha = parts[2];
+                }
+
+                const rawUnit = row[4] || 'Sin Unidad';
+                let unit = rawUnit;
+                if (rawUnit.includes('3059')) unit = 'Jujuy';
+                else if (rawUnit.includes('3087')) unit = 'Salta';
+
                 return {
                   referenciaMeses: parts[0] || row[0] || '',
-                  curso: parts[1] || row[1] || '',
-                  claseFecha: parts[2] || parts[3] || colC,
-                  claseHora: parts[4] || '',
-                  nombre: row[0] || 'Sin Nombre',
-                  unidad: row[1] || 'Sin Unidad',
-                  fechaRegistro: row[3] || row[4] || ''
+                  curso: curso,
+                  claseFecha: fecha || colC,
+                  claseHora: hora,
+                  nombre: row[3] || 'Sin Nombre',
+                  unidad: unit,
+                  area: 'Sin Area',
+                  fechaRegistro: row[5] || '',
+                  linkCurso: row[8] || ''
                 };
               }
 
               // Fallback to standard mapping if no pipe format detected
+              const rawUnitFallback = row[4] || row[1] || 'Sin Unidad';
+              let unitFallback = rawUnitFallback;
+              if (rawUnitFallback.includes('3059')) unitFallback = 'Jujuy';
+              else if (rawUnitFallback.includes('3087')) unitFallback = 'Salta';
+
               return {
                 referenciaMeses: row[0] || '',
                 curso: row[1] || '',
                 claseFecha: row[2] || '',
                 claseHora: row[4] || row[3] || '',
-                nombre: row[5] || row[0] || 'Sin Nombre',
-                unidad: row[6] || row[1] || 'Sin Unidad',
-                fechaRegistro: row[7] || ''
+                nombre: row[3] || row[0] || 'Sin Nombre',
+                unidad: unitFallback,
+                area: 'Sin Area',
+                fechaRegistro: row[5] || '',
+                linkCurso: row[8] || ''
               };
             });
           resolve(relatorio);
@@ -234,6 +278,42 @@ export const fetchHRRelatorioData = async (url: string): Promise<RelatorioItem[]
     });
   } catch (error) {
     console.error("Error fetching relatorio data:", error);
+    throw error;
+  }
+};
+
+export const fetchCoursePhasesData = async (url: string): Promise<CoursePhase[]> => {
+  try {
+    const response = await fetch(url);
+    const csvText = await response.text();
+
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data as string[][];
+          if (rows.length < 2) {
+            resolve([]);
+            return;
+          }
+
+          // The user specified: Col A (0) = Curso, Col B (1) = Fase, Col C (2) = Modalidad
+          // We'll skip the first row assuming it's a header
+          const phases: CoursePhase[] = rows.slice(1)
+            .filter(row => row[0]) // Must have a course name
+            .map(row => ({
+              curso: (row[0] || '').trim(),
+              fase: (row[1] || 'Otros').trim() || 'Otros',
+              modalidad: (row[2] || 'Sin Modalidad').trim() || 'Sin Modalidad'
+            }));
+          resolve(phases);
+        },
+        error: (error) => reject(error)
+      });
+    });
+  } catch (error) {
+    console.error("Error fetching course phases data:", error);
     throw error;
   }
 };

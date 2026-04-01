@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import html2canvas from 'html2canvas';
+import { toJpeg } from 'html-to-image';
 import { 
   Calendar as CalendarIcon, 
   List, 
@@ -9,6 +9,7 @@ import {
   Clock, 
   MapPin, 
   User,
+  Users,
   GraduationCap,
   AlertCircle,
   X,
@@ -22,11 +23,13 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { RelatorioItem, CollaboratorContact } from '../types';
+import { RelatorioItem, CollaboratorContact, CoursePhase } from '../types';
+import { normalizeKey } from '../services/dataService';
 
 interface RRHHCalendarViewProps {
   relatorio: RelatorioItem[];
   contacts: CollaboratorContact[];
+  phases: CoursePhase[];
   initialSelectedEvent?: RelatorioItem | null;
   onCloseEventDetail?: () => void;
 }
@@ -34,6 +37,7 @@ interface RRHHCalendarViewProps {
 const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({ 
   relatorio, 
   contacts,
+  phases,
   initialSelectedEvent,
   onCloseEventDetail
 }) => {
@@ -41,22 +45,34 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<RelatorioItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCollabFilter, setSelectedCollabFilter] = useState<string>('all');
+  const [selectedCollabFilters, setSelectedCollabFilters] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Enrich relatorio with modalidad from phases
+  const enrichedRelatorio = useMemo(() => {
+    return relatorio.map(item => {
+      const normalizedCourseName = normalizeKey(item.curso);
+      const phaseInfo = phases.find(p => normalizeKey(p.curso) === normalizedCourseName);
+      return {
+        ...item,
+        modalidad: phaseInfo?.modalidad || 'Sin Modalidad' // Default to Sin Modalidad if not found
+      };
+    });
+  }, [relatorio, phases]);
+
   // Get unique collaborators for filter
   const collaborators = useMemo(() => {
-    const names = new Set(relatorio.map(item => item.nombre));
+    const names = new Set(enrichedRelatorio.map(item => item.nombre));
     return Array.from(names).sort();
-  }, [relatorio]);
+  }, [enrichedRelatorio]);
 
   // Filter relatorio based on search query and collaborator filter
   const filteredRelatorio = useMemo(() => {
-    let result = relatorio;
+    let result = enrichedRelatorio;
     
-    if (selectedCollabFilter !== 'all') {
-      result = result.filter(item => item.nombre === selectedCollabFilter);
+    if (selectedCollabFilters.length > 0) {
+      result = result.filter(item => selectedCollabFilters.includes(item.nombre));
     }
 
     if (searchQuery) {
@@ -64,12 +80,13 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
       result = result.filter(item => 
         item.nombre.toLowerCase().includes(lowerQuery) ||
         item.curso.toLowerCase().includes(lowerQuery) ||
-        item.unidad.toLowerCase().includes(lowerQuery)
+        item.unidad.toLowerCase().includes(lowerQuery) ||
+        (item.modalidad && item.modalidad.toLowerCase().includes(lowerQuery))
       );
     }
     
     return result;
-  }, [relatorio, searchQuery, selectedCollabFilter]);
+  }, [enrichedRelatorio, searchQuery, selectedCollabFilters]);
 
   // Helper to parse date string safely
   const parseDate = (dateStr: string | undefined, referenceMonth?: string): Date | null => {
@@ -190,7 +207,8 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
       return;
     }
 
-    const message = `Hola ${contact.nombre}, te recordamos que tienes el curso "${event.curso}" el día ${event.claseFecha} a las ${event.claseHora}. ¡Te esperamos!`;
+    const linkMessage = event.linkCurso ? `\n\nLink del curso: ${event.linkCurso}` : '';
+    const message = `Hola ${contact.nombre}, te recordamos que tienes el curso "${event.curso}" el día ${event.claseFecha} a las ${event.claseHora}.${linkMessage} ¡Te esperamos!`;
     const encodedMessage = encodeURIComponent(message);
     const phone = contact.telefono.replace(/\D/g, ''); // Remove non-digits
     
@@ -251,11 +269,11 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
   }, [currentDate]);
 
   const isCurrentMonthEmpty = useMemo(() => {
-    return !relatorio.some(item => {
+    return !enrichedRelatorio.some(item => {
       const d = parseDate(item.claseFecha, item.referenciaMeses);
       return d && isSameMonth(d, currentDate);
     });
-  }, [relatorio, currentDate]);
+  }, [enrichedRelatorio, currentDate]);
 
   const getEventsForDay = (day: Date) => {
     return filteredRelatorio.filter(item => {
@@ -276,19 +294,55 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
   const handleExportJPG = async () => {
     if (!printRef.current) return;
     setIsExporting(true);
+    
+    // Add a small delay to ensure everything is rendered
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     try {
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        backgroundColor: '#F2F3F5',
-        logging: false,
-        useCORS: true
+      const element = printRef.current;
+      const clone = element.cloneNode(true) as HTMLElement;
+      
+      clone.style.position = 'fixed';
+      clone.style.top = '0';
+      clone.style.left = '0';
+      clone.style.width = '1400px';
+      clone.style.height = 'auto';
+      clone.style.padding = '40px';
+      clone.style.backgroundColor = '#F8FAFC';
+      clone.style.zIndex = '-1000';
+      clone.style.display = 'block';
+
+      // Force all elements to be visible
+      const allElements = clone.querySelectorAll('*');
+      allElements.forEach(e => {
+        const el = e as HTMLElement;
+        if (el.style) {
+          if (el.style.opacity === '0') el.style.opacity = '1';
+          el.style.transform = 'none';
+          el.style.transition = 'none';
+          el.style.animation = 'none';
+        }
       });
+
+      document.body.appendChild(clone);
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      const dataUrl = await toJpeg(clone, {
+        quality: 0.95,
+        backgroundColor: '#F8FAFC',
+        width: 1400,
+        pixelRatio: 2
+      });
+
+      document.body.removeChild(clone);
+
       const link = document.createElement('a');
       link.download = `Calendario_Capacitacion_${format(currentDate, 'MMMM_yyyy', { locale: es })}.jpg`;
-      link.href = canvas.toDataURL('image/jpeg', 0.9);
+      link.href = dataUrl;
       link.click();
     } catch (err) {
       console.error('Error exporting JPG:', err);
+      alert('Error al exportar la imagen. Por favor, intente de nuevo.');
     } finally {
       setIsExporting(false);
     }
@@ -358,6 +412,13 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
                       <span>{selectedEvent.claseHora || 'Sin Horario'}</span>
                     </div>
                   </div>
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo / Modalidad</p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#001E50]">
+                      <Info size={14} className="text-[#00B0F0]" />
+                      <span>{selectedEvent.modalidad || 'Presencial'}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -399,82 +460,113 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
       </AnimatePresence>
 
       {/* Header Controls */}
-      <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100 gap-4 no-print">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex p-1 bg-slate-100 rounded-xl">
+      <div className="flex flex-wrap items-center justify-between bg-white p-6 rounded-3xl shadow-sm border border-slate-100 gap-6 no-print mb-8">
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex p-1.5 bg-slate-50 rounded-2xl border border-slate-100">
             <button 
               onClick={() => setViewMode('calendar')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                viewMode === 'calendar' ? 'bg-white text-[#001E50] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all ${
+                viewMode === 'calendar' ? 'bg-white text-[#001E50] shadow-sm border border-slate-100' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <CalendarIcon size={16} />
-              <span>Vista Mensual</span>
+              <CalendarIcon size={16} strokeWidth={1.5} />
+              <span className="font-display">Vista Mensual</span>
             </button>
             <button 
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                viewMode === 'list' ? 'bg-white text-[#001E50] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all ${
+                viewMode === 'list' ? 'bg-white text-[#001E50] shadow-sm border border-slate-100' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <List size={16} />
-              <span>Vista de Lista</span>
+              <List size={16} strokeWidth={1.5} />
+              <span className="font-display">Vista de Lista</span>
             </button>
           </div>
 
           {viewMode === 'calendar' && (
-            <div className="flex items-center gap-4">
-              <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors">
-                <ChevronLeft size={20} />
+            <div className="flex items-center gap-6 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+              <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 transition-all">
+                <ChevronLeft size={20} strokeWidth={1.5} />
               </button>
-              <h3 className="text-sm font-black text-[#001E50] uppercase tracking-widest min-w-[150px] text-center">
+              <h3 className="text-sm font-semibold text-[#001E50] font-display tracking-tight min-w-[160px] text-center capitalize">
                 {format(currentDate, 'MMMM yyyy', { locale: es })}
               </h3>
-              <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors">
-                <ChevronRight size={20} />
+              <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 transition-all">
+                <ChevronRight size={20} strokeWidth={1.5} />
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-3 flex-1 max-w-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-            <input 
-              type="text"
-              placeholder="FILTRAR..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-[#001E50] focus:border-[#00B0F0] outline-none transition-all"
-            />
+        <div className="flex flex-col gap-3 flex-1 max-w-xl">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00B0F0] transition-colors" size={16} strokeWidth={1.5} />
+              <input 
+                type="text"
+                placeholder="Buscar curso, colaborador o unidad..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium text-[#001E50] focus:ring-2 focus:ring-[#00B0F0]/10 focus:border-[#00B0F0] outline-none transition-all placeholder:text-slate-400"
+              />
+            </div>
+            <div className="relative">
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} strokeWidth={1.5} />
+              <select
+                value=""
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val && !selectedCollabFilters.includes(val)) {
+                    setSelectedCollabFilters(prev => [...prev, val]);
+                  }
+                }}
+                className="w-56 pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium text-[#001E50] focus:ring-2 focus:ring-[#00B0F0]/10 focus:border-[#00B0F0] outline-none cursor-pointer appearance-none"
+              >
+                <option value="">Filtrar Colaborador</option>
+                {collaborators.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <select
-            value={selectedCollabFilter}
-            onChange={(e) => setSelectedCollabFilter(e.target.value)}
-            className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-black text-[#001E50] focus:border-[#00B0F0] outline-none cursor-pointer uppercase tracking-tight"
-          >
-            <option value="all">TODOS LOS COLABORADORES</option>
-            {collaborators.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+          
+          {selectedCollabFilters.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCollabFilters.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setSelectedCollabFilters(prev => prev.filter(item => item !== c))}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#001E50]/5 text-[#001E50] rounded-xl text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-50 hover:text-rose-600 transition-all border border-[#001E50]/10 group"
+                >
+                  {c}
+                  <X size={12} strokeWidth={2} className="group-hover:scale-110 transition-transform" />
+                </button>
+              ))}
+              <button
+                onClick={() => setSelectedCollabFilters([])}
+                className="px-3 py-1.5 text-[10px] font-semibold text-rose-500 uppercase tracking-widest hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-100"
+              >
+                Limpiar Todo
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button 
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#001E50] rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+            className="flex items-center gap-2.5 px-5 py-3 bg-white hover:bg-slate-50 text-[#001E50] rounded-2xl text-[11px] font-semibold uppercase tracking-widest transition-all border border-slate-100"
           >
-            <Printer size={14} />
-            Imprimir
+            <Printer size={16} strokeWidth={1.5} />
+            <span className="font-display">Imprimir</span>
           </button>
           <button 
             onClick={handleExportJPG}
             disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 bg-[#001E50] hover:bg-[#001E50]/90 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-[#001E50]/20 disabled:opacity-50"
+            className="flex items-center gap-2.5 px-5 py-3 bg-[#001E50] hover:bg-[#001E50]/90 text-white rounded-2xl text-[11px] font-semibold uppercase tracking-widest transition-all shadow-xl shadow-[#001E50]/10 disabled:opacity-50"
           >
-            <Download size={14} />
-            {isExporting ? 'Exportando...' : 'Exportar JPG'}
+            <Download size={16} strokeWidth={1.5} />
+            <span className="font-display">{isExporting ? 'Exportando...' : 'Exportar JPG'}</span>
           </button>
         </div>
       </div>
@@ -504,51 +596,73 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
                 const isToday = isSameDay(day, new Date());
 
                 return (
-                  <div 
-                    key={idx} 
-                    className={`min-h-[140px] p-2 border-r border-b border-slate-100 transition-colors ${
-                      !isCurrentMonth ? 'bg-slate-50/30' : 'bg-white'
-                    } ${isToday ? 'bg-blue-50/30' : ''}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={`text-xs font-black font-mono ${
-                        isToday ? 'text-[#00B0F0]' : isCurrentMonth ? 'text-[#001E50]' : 'text-slate-300'
-                      }`}>
-                        {format(day, 'd')}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {events.map((event, eIdx) => (
-                        <div 
-                          key={eIdx}
-                          className="group/event relative flex flex-col p-2 bg-amber-50 border border-amber-100 rounded-xl hover:shadow-md transition-all cursor-pointer hover:border-[#00B0F0] hover:bg-white"
-                          onClick={() => setSelectedEvent(event)}
-                        >
-                          <div className="flex items-start justify-between gap-1 mb-1">
-                            <span className="text-[9px] font-black text-amber-700 leading-tight uppercase line-clamp-2 flex-1">
-                              {event.curso}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleWhatsApp(event);
-                              }}
-                              className="p-1 bg-[#25D366] text-white rounded-md hover:bg-[#128C7E] transition-colors shadow-sm"
-                              title="Enviar WhatsApp"
-                            >
-                              <MessageCircle size={10} />
-                            </button>
+                    <div 
+                      key={idx} 
+                      className={`min-h-[180px] p-3 border-r border-b border-slate-100 transition-all ${
+                        !isCurrentMonth ? 'bg-slate-50/20' : 'bg-white'
+                      } ${isToday ? 'bg-[#00B0F0]/5' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <span className={`text-xs font-semibold font-display ${
+                          !isCurrentMonth ? 'text-slate-300' : isToday ? 'text-[#00B0F0]' : 'text-slate-400'
+                        }`}>
+                          {format(day, 'd')}
+                        </span>
+                        {events.length > 0 && (
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[9px] font-bold">
+                            {events.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {events.map((event, eIdx) => (
+                          <div 
+                            key={eIdx}
+                            className="group/event relative flex flex-col p-3 bg-white border border-slate-100 rounded-2xl hover:shadow-lg hover:shadow-[#00B0F0]/10 transition-all cursor-pointer hover:border-[#00B0F0] hover:-translate-y-0.5"
+                            onClick={() => setSelectedEvent(event)}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex-1">
+                                <span className="text-[10px] font-semibold text-[#001E50] leading-tight font-display group-hover/event:text-[#00B0F0] transition-colors block">
+                                  {event.curso}
+                                </span>
+                                {event.modalidad && (
+                                  <span className={`text-[8px] font-semibold uppercase tracking-widest block mt-1 ${
+                                    event.modalidad === 'Presencial' ? 'text-emerald-500' : 'text-blue-500'
+                                  }`}>
+                                    {event.modalidad}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleWhatsApp(event);
+                                }}
+                                className="p-1.5 bg-[#25D366]/10 text-[#25D366] rounded-lg hover:bg-[#25D366] hover:text-white transition-all shrink-0"
+                                title="Enviar WhatsApp"
+                              >
+                                <MessageCircle size={12} strokeWidth={2} />
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-2 pt-2 border-t border-slate-50">
+                              <div className="flex items-start gap-1.5">
+                                <User size={10} className="text-slate-400 shrink-0 mt-0.5" strokeWidth={1.5} />
+                                <span className="text-[9px] font-medium text-slate-500 leading-tight">
+                                  {event.nombre}
+                                </span>
+                              </div>
+                              {event.claseHora && (
+                                <div className="flex items-center gap-1 text-[8px] font-semibold text-[#00B0F0] bg-[#00B0F0]/5 px-1.5 py-0.5 rounded-md self-start">
+                                  <Clock size={10} strokeWidth={2} />
+                                  <span>{event.claseHora}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5 pt-1 border-t border-amber-100/50">
-                            <div className="w-1 h-1 rounded-full bg-[#00B0F0]" />
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight truncate">
-                              {event.nombre}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
                 );
               })}
 
@@ -569,86 +683,99 @@ const RRHHCalendarView: React.FC<RRHHCalendarViewProps> = ({
             </div>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {Object.entries(groupedByMonth).sort().map(([month, items]) => {
               const typedItems = items as RelatorioItem[];
               return (
-                <div key={month} className="space-y-4">
+                <div key={month} className="space-y-6">
                   <div className="flex items-center gap-4">
-                    <h4 className="text-sm font-black text-[#001E50] uppercase tracking-widest bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
-                      {month}
-                    </h4>
+                    <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
+                      <CalendarIcon size={18} className="text-[#00B0F0]" />
+                      <h4 className="text-sm font-black text-[#001E50] uppercase tracking-widest">
+                        {month}
+                      </h4>
+                    </div>
                     <div className="h-px flex-1 bg-slate-200"></div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase">{typedItems.length} Cursos</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{typedItems.length} Capacitaciones</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {typedItems.map((item, idx) => (
-                      <div 
-                        key={idx} 
-                        onClick={() => setSelectedEvent(item)}
-                        className="bg-white rounded-3xl shadow-sm border border-slate-100 hover:border-[#00B0F0] transition-all group cursor-pointer overflow-hidden flex flex-col"
-                      >
-                        {/* Card Header Style like Modal */}
-                        <div className="bg-[#001E50] p-5 text-white">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#00B0F0] flex items-center justify-center shadow-lg shadow-[#00B0F0]/20">
-                              <GraduationCap size={20} />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[7px] font-black uppercase rounded-full tracking-widest">Próximamente</span>
+                  
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                          <th className="px-6 py-5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">Fecha y Hora</th>
+                          <th className="px-6 py-5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">Colaborador</th>
+                          <th className="px-6 py-5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">Capacitación</th>
+                          <th className="px-6 py-5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">Unidad</th>
+                          <th className="px-6 py-5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] text-right">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {typedItems.map((item, idx) => (
+                          <tr 
+                            key={idx} 
+                            className="hover:bg-slate-50/30 transition-colors group cursor-pointer"
+                            onClick={() => setSelectedEvent(item)}
+                          >
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-4">
+                                <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center justify-center text-[#001E50] shadow-sm">
+                                  <span className="text-xs font-bold font-display leading-none">{item.claseFecha?.split('/')[0]}</span>
+                                  <span className="text-[8px] font-semibold leading-none uppercase tracking-widest mt-0.5">{item.claseFecha?.split('/')[1]}</span>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-[#001E50] font-display">{item.claseFecha}</p>
+                                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{item.claseHora}</p>
+                                </div>
                               </div>
-                              <h5 className="text-xs font-black leading-tight uppercase tracking-tight line-clamp-1">{item.curso}</h5>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card Body with all details */}
-                        <div className="p-5 space-y-4 flex-1">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Colaborador</p>
-                              <div className="flex items-center gap-2 text-[10px] font-bold text-[#001E50]">
-                                <User size={12} className="text-[#00B0F0]" />
-                                <span className="truncate">{item.nombre}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[#001E50]">
+                                  <User size={14} strokeWidth={1.5} />
+                                </div>
+                                <span className="text-xs font-semibold text-[#001E50] font-display">{item.nombre}</span>
                               </div>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Unidad</p>
-                              <div className="flex items-center gap-2 text-[10px] font-bold text-[#001E50]">
-                                <Building2 size={12} className="text-[#00B0F0]" />
-                                <span className="truncate">{item.unidad}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="max-w-xs">
+                                <p className="text-xs font-semibold text-[#001E50] font-display group-hover:text-[#00B0F0] transition-colors line-clamp-1">{item.curso}</p>
+                                <span className={`text-[9px] font-semibold uppercase tracking-widest mt-1 inline-block ${
+                                  item.modalidad === 'Presencial' ? 'text-emerald-500' : 'text-blue-500'
+                                }`}>
+                                  {item.modalidad || 'Presencial'}
+                                </span>
                               </div>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Fecha</p>
-                              <div className="flex items-center gap-2 text-[10px] font-bold text-[#001E50]">
-                                <CalendarDays size={12} className="text-[#00B0F0]" />
-                                <span>{item.claseFecha || 'Sin Fecha'}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-500">
+                                <Building2 size={14} strokeWidth={1.5} className="text-slate-400" />
+                                <span className="uppercase tracking-widest">{item.unidad}</span>
                               </div>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Horario</p>
-                              <div className="flex items-center gap-2 text-[10px] font-bold text-[#001E50]">
-                                <Clock size={12} className="text-[#00B0F0]" />
-                                <span>{item.claseHora || 'Sin Horario'}</span>
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleWhatsApp(item);
+                                  }}
+                                  className="p-2.5 bg-[#25D366]/10 text-[#25D366] rounded-xl hover:bg-[#25D366] hover:text-white transition-all shadow-sm"
+                                  title="Enviar WhatsApp"
+                                >
+                                  <MessageCircle size={16} strokeWidth={2} />
+                                </button>
+                                <button 
+                                  className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-[#001E50] hover:text-white transition-all border border-slate-100"
+                                >
+                                  <ChevronRight size={16} strokeWidth={2} />
+                                </button>
                               </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mt-auto">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-[8px] font-bold text-slate-400 uppercase">Referencia</span>
-                              <span className="text-[8px] font-black text-[#001E50]">{item.referenciaMeses}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-[8px] font-bold text-slate-400 uppercase">Registro</span>
-                              <span className="text-[8px] font-black text-[#001E50]">{item.fechaRegistro}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               );

@@ -9,8 +9,8 @@ import {
   AlertCircle,
   ArrowLeft
 } from 'lucide-react';
-import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData } from '../services/dataService';
-import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact } from '../types';
+import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData, fetchCoursePhasesData } from '../services/dataService';
+import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact, CoursePhase } from '../types';
 import { SkeletonLoader } from './DashboardUI';
 
 // Views
@@ -22,16 +22,18 @@ interface RRHHDashboardProps {
   gradesUrl: string;
   relatorioUrl: string;
   contactsUrl: string;
+  phasesUrl: string;
   onBack: () => void;
 }
 
 export type RRHHView = 'dashboard' | 'collaborators' | 'calendar';
 
-const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, onBack }) => {
+const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, phasesUrl, onBack }) => {
   const [view, setView] = useState<RRHHView>('dashboard');
   const [grades, setGrades] = useState<CourseGrade[]>([]);
   const [relatorio, setRelatorio] = useState<RelatorioItem[]>([]);
   const [contacts, setContacts] = useState<CollaboratorContact[]>([]);
+  const [phases, setPhases] = useState<CoursePhase[]>([]);
   const [loadingState, setLoadingState] = useState<LoadingState>(LoadingState.IDLE);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollabId, setSelectedCollabId] = useState<string | null>(null);
@@ -57,15 +59,17 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
 
       try {
-        const [gradesData, relatorioData, contactsData] = await Promise.all([
+        const [gradesData, relatorioData, contactsData, phasesData] = await Promise.all([
           fetchHRGradesData(gradesUrl),
           fetchHRRelatorioData(relatorioUrl),
-          fetchHRContactsData(contactsUrl)
+          fetchHRContactsData(contactsUrl),
+          fetchCoursePhasesData(phasesUrl)
         ]);
         
         setGrades(gradesData);
         setRelatorio(relatorioData);
         setContacts(contactsData);
+        setPhases(phasesData);
         setLoadingState(LoadingState.SUCCESS);
       } catch (error: any) {
         console.error("RRHHDashboard: Error loading HR data:", error);
@@ -88,14 +92,12 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       const matchFunction = selectedFunction === 'ALL' || g.funcion === selectedFunction;
       
       if (showPendingOnly) {
-        const normalizedName = g.colaborador.toLowerCase().trim();
-        const hasPending = relatorio.some(r => r.nombre.toLowerCase().trim() === normalizedName);
-        return matchSearch && matchUnit && matchArea && matchFunction && hasPending;
+        return matchSearch && matchUnit && matchArea && matchFunction && g.icf < 100;
       }
 
       return matchSearch && matchUnit && matchArea && matchFunction;
     });
-  }, [grades, searchQuery, selectedUnit, selectedArea, selectedFunction, showPendingOnly, relatorio]);
+  }, [grades, searchQuery, selectedUnit, selectedArea, selectedFunction, showPendingOnly]);
 
   const units = useMemo(() => ['ALL', ...new Set(grades.map(g => g.unidad))].sort(), [grades]);
   const areas = useMemo(() => ['ALL', ...new Set(grades.map(g => g.area))].sort(), [grades]);
@@ -128,6 +130,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
           <RRHHTalentView 
             grades={filteredGrades} 
             relatorio={relatorio}
+            phases={phases}
             units={units}
             areas={areas}
             functions={functions}
@@ -148,6 +151,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
           <RRHHCollaboratorsView 
             grades={grades} 
             relatorio={relatorio}
+            phases={phases}
             initialSearch={searchQuery}
             initialSelectedId={selectedCollabId}
             onNavigateToCalendar={handleNavigateToCalendar}
@@ -158,6 +162,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
           <RRHHCalendarView 
             relatorio={relatorio}
             contacts={contacts}
+            phases={phases}
             initialSelectedEvent={selectedCalendarEvent}
             onCloseEventDetail={() => setSelectedCalendarEvent(null)}
           />
@@ -168,60 +173,60 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] font-sans text-[#1A1A1A]">
+    <div className="min-h-screen bg-slate-50/30 font-sans text-slate-900">
       <main className="flex flex-col min-w-0">
-        <header className="bg-white border-b border-slate-100 z-20 sticky top-0 shadow-sm">
+        <header className="bg-white border-b border-slate-100 z-20 sticky top-0 shadow-sm backdrop-blur-md bg-white/80">
           <div className="max-w-[1600px] mx-auto w-full">
-            <div className="h-16 px-6 flex items-center justify-between border-b border-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#001E50] rounded-xl flex items-center justify-center shadow-lg shadow-[#001E50]/20">
-                  <span className="text-white font-black text-xl">A</span>
+            <div className="h-20 px-8 flex items-center justify-between border-b border-slate-50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#001E50] rounded-2xl flex items-center justify-center shadow-xl shadow-[#001E50]/10">
+                  <span className="text-white font-bold text-2xl font-display">A</span>
                 </div>
                 <div>
-                  <h1 className="font-black text-sm leading-tight uppercase tracking-tighter text-[#001E50]">Autosol</h1>
-                  <p className="text-[8px] font-black text-[#00B0F0] uppercase tracking-[0.2em]">Talent Hub</p>
+                  <h1 className="font-bold text-lg leading-none font-display tracking-tight text-[#001E50]">Autosol</h1>
+                  <p className="text-[10px] font-semibold text-[#00B0F0] uppercase tracking-[0.2em] mt-1">Talent Hub</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <div className="relative w-64 group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00B0F0] transition-colors" size={16} />
+              <div className="flex items-center gap-6">
+                <div className="relative w-72 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#00B0F0] transition-colors" size={18} strokeWidth={1.5} />
                   <input 
                     type="text"
-                    placeholder="Buscar..."
+                    placeholder="Buscar en el hub..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-transparent focus:bg-white focus:border-[#00B0F0] rounded-xl text-xs transition-all outline-none font-medium"
+                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-100 focus:bg-white focus:border-[#00B0F0] rounded-2xl text-sm transition-all outline-none font-medium placeholder:text-slate-400"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="px-6 flex items-center justify-between">
-              <nav className="flex items-center gap-1">
+            <div className="px-8 flex items-center justify-between">
+              <nav className="flex items-center gap-2">
                 <TabButton 
                   active={view === 'dashboard'} 
                   onClick={() => setView('dashboard')}
-                  icon={<LayoutDashboard size={18} />}
+                  icon={<LayoutDashboard size={20} strokeWidth={1.5} />}
                   label="Dashboard"
                 />
                 <TabButton 
                   active={view === 'collaborators'} 
                   onClick={() => setView('collaborators')}
-                  icon={<Users size={18} />}
+                  icon={<Users size={20} strokeWidth={1.5} />}
                   label="Colaboradores"
                 />
                 <TabButton 
                   active={view === 'calendar'} 
                   onClick={() => setView('calendar')}
-                  icon={<Calendar size={18} />}
+                  icon={<Calendar size={20} strokeWidth={1.5} />}
                   label="Calendario"
                 />
               </nav>
               
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-4 bg-[#00B0F0] rounded-full" />
-                <h2 className="text-sm font-black uppercase tracking-tight text-[#001E50]">
+              <div className="flex items-center gap-4">
+                <div className="w-1.5 h-6 bg-[#00B0F0] rounded-full shadow-sm shadow-[#00B0F0]/20" />
+                <h2 className="text-base font-semibold font-display tracking-tight text-[#001E50]">
                   {view === 'dashboard' ? 'Gestión de Talento' : view === 'collaborators' ? 'Perfil de Colaboradores' : 'Calendario de Capacitación'}
                 </h2>
               </div>
@@ -292,18 +297,20 @@ interface TabButtonProps {
 const TabButton: React.FC<TabButtonProps> = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-2 px-6 py-4 transition-all duration-200 relative ${
+    className={`flex items-center gap-3 px-8 py-5 transition-all duration-300 relative group ${
       active 
-        ? 'text-[#00B0F0] font-black' 
-        : 'text-slate-400 hover:text-[#001E50] font-bold'
+        ? 'text-[#00B0F0] font-semibold' 
+        : 'text-slate-400 hover:text-[#001E50] font-medium'
     }`}
   >
-    {icon}
-    <span className="text-[11px] uppercase tracking-wider">{label}</span>
+    <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+      {icon}
+    </span>
+    <span className="text-xs font-display uppercase tracking-widest">{label}</span>
     {active && (
       <motion.div 
         layoutId="activeTab"
-        className="absolute bottom-0 left-0 right-0 h-1 bg-[#00B0F0] rounded-t-full"
+        className="absolute bottom-0 left-0 right-0 h-1 bg-[#00B0F0] rounded-t-full shadow-[0_-2px_8px_rgba(0,176,240,0.4)]"
       />
     )}
   </button>
