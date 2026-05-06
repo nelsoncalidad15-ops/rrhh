@@ -65,7 +65,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
 
       try {
-        const [gradesData, relatorioData, contactsData, phasesData] = await Promise.all([
+        const [gradesData, relatorioData, contactsData, phasesData, estandarOperacionalData] = await Promise.all([
           fetchHRGradesData(gradesUrl),
           fetchHRRelatorioData(relatorioUrl),
           fetchHRContactsData(contactsUrl),
@@ -86,7 +86,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
     };
     loadData();
-  }, [gradesUrl, relatorioUrl, retryCount]);
+  }, [gradesUrl, relatorioUrl, contactsUrl, phasesUrl, estandarOperacionalUrl, retryCount]);
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
