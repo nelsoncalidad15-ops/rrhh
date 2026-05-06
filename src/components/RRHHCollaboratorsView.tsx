@@ -39,6 +39,97 @@ interface ProgramCourse {
   modalidad: string;
 }
 
+interface RelatorioCourseCardData {
+  name: string;
+  score: number;
+  status: 'pending';
+  type: 'relatorio';
+  relatorioItem: RelatorioItem;
+  isScheduleExpired: boolean;
+}
+
+const monthMap: Record<string, number> = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  setiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11
+};
+
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+const parseRelatorioEndDateTime = (claseFecha?: string, claseHora?: string): Date | null => {
+  if (!claseFecha) return null;
+
+  const cleanDate = normalizeText(claseFecha);
+  const currentYear = new Date().getFullYear();
+
+  let day: number | null = null;
+  let month: number | null = null;
+  let year = currentYear;
+
+  const dayMonthText = cleanDate.match(/(\d{1,2})\s+de\s+([a-z]+)/i);
+  if (dayMonthText) {
+    day = Number(dayMonthText[1]);
+    month = monthMap[dayMonthText[2]] ?? null;
+  }
+
+  const numericDate = cleanDate.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
+  if (numericDate && day === null) {
+    day = Number(numericDate[1]);
+    month = Number(numericDate[2]) - 1;
+    if (numericDate[3]) {
+      year = Number(numericDate[3]);
+      if (year < 100) year += 2000;
+    }
+  }
+
+  const explicitYear = cleanDate.match(/\b(20\d{2})\b/);
+  if (explicitYear) {
+    year = Number(explicitYear[1]);
+  }
+
+  if (day === null || month === null || Number.isNaN(day) || Number.isNaN(month)) {
+    return null;
+  }
+
+  const timeMatches = (claseHora || '').match(/(\d{1,2})[:.](\d{2})/g) || [];
+  const endTimeRaw = timeMatches.length > 0 ? timeMatches[timeMatches.length - 1] : null;
+
+  let hours = 23;
+  let minutes = 59;
+
+  if (endTimeRaw) {
+    const parsed = endTimeRaw.match(/(\d{1,2})[:.](\d{2})/);
+    if (parsed) {
+      hours = Number(parsed[1]);
+      minutes = Number(parsed[2]);
+    }
+  }
+
+  const date = new Date(year, month, day, hours, minutes, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isRelatorioScheduleExpired = (relatorioItem: RelatorioItem): boolean => {
+  const endDate = parseRelatorioEndDateTime(relatorioItem.claseFecha, relatorioItem.claseHora);
+  if (!endDate) return false;
+  return endDate.getTime() < Date.now();
+};
+
 const RRHHCollaboratorsView: React.FC<RRHHCollaboratorsViewProps> = ({
   grades,
   relatorio,
@@ -593,7 +684,8 @@ const RRHHCollaboratorsView: React.FC<RRHHCollaboratorsViewProps> = ({
                 score: 0,
                 status: 'pending' as const,
                 type: 'relatorio' as const,
-                relatorioItem: r
+                relatorioItem: r,
+                isScheduleExpired: isRelatorioScheduleExpired(r)
               })).sort((a, b) => a.name.localeCompare(b.name));
 
             return (
@@ -841,13 +933,21 @@ const statusTextMap = {
 };
 
 interface CourseCardProps {
-  courseData: any;
+  courseData: ProgramCourse | RelatorioCourseCardData;
   onNavigateToCalendar?: (event: RelatorioItem) => void;
   isCompact?: boolean;
 }
 
 const CourseCard: React.FC<CourseCardProps> = ({ courseData, onNavigateToCalendar, isCompact }) => {
   const { name, score, status, type } = courseData;
+  const relatorioItem =
+    type === 'relatorio' && 'relatorioItem' in courseData
+      ? courseData.relatorioItem
+      : undefined;
+  const isExpiredRelatorio =
+    type === 'relatorio' &&
+    'isScheduleExpired' in courseData &&
+    Boolean(courseData.isScheduleExpired);
   
   let statusColor = 'bg-rose-500';
   let textColor = 'text-rose-600';
@@ -865,8 +965,16 @@ const CourseCard: React.FC<CourseCardProps> = ({ courseData, onNavigateToCalenda
     statusColor = 'bg-emerald-500';
     textColor = 'text-emerald-600';
     bgColor = 'bg-emerald-50';
-    statusText = type === 'relatorio' ? 'Finalizado' : 'Aprobado';
+    statusText = 'Aprobado';
     Icon = CheckCircle2;
+  }
+
+  if (isExpiredRelatorio) {
+    statusColor = 'bg-slate-400';
+    textColor = 'text-slate-500';
+    bgColor = 'bg-slate-100';
+    statusText = 'Tiempo vencido';
+    Icon = AlertCircle;
   }
 
   if (isCompact) {
@@ -874,13 +982,22 @@ const CourseCard: React.FC<CourseCardProps> = ({ courseData, onNavigateToCalenda
       <motion.div 
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        onClick={() => onNavigateToCalendar?.(courseData.relatorioItem!)}
-        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group cursor-pointer hover:border-[#00B0F0] relative overflow-hidden"
+        onClick={() => relatorioItem && onNavigateToCalendar?.(relatorioItem)}
+        className={`bg-white p-5 rounded-2xl border shadow-sm transition-all group cursor-pointer relative overflow-hidden ${
+          isExpiredRelatorio
+            ? 'border-slate-200 hover:border-slate-300'
+            : 'border-slate-100 hover:shadow-md hover:border-[#00B0F0]'
+        }`}
       >
         <div className={`absolute top-0 left-0 w-1 h-full ${statusColor}`} />
         <div className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
+              {isExpiredRelatorio && (
+                <span className="inline-flex mb-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[8px] font-semibold tracking-[0.08em]">
+                  Tiempo de cursado vencido
+                </span>
+              )}
               <h5 className="text-xs font-semibold text-[#001E50] font-display leading-snug group-hover:text-[#00B0F0] transition-colors">
                 {name}
               </h5>
@@ -893,14 +1010,14 @@ const CourseCard: React.FC<CourseCardProps> = ({ courseData, onNavigateToCalenda
           <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50">
             <div className="flex items-center gap-2">
               <Calendar size={12} strokeWidth={1.5} className="text-slate-400" />
-              <span className="text-[9px] font-medium text-slate-500 uppercase tracking-wider">
-                {courseData.relatorioItem?.claseFecha || 'Sin fecha'}
+              <span className={`text-[9px] font-medium tracking-wider ${isExpiredRelatorio ? 'text-slate-500' : 'text-slate-500 uppercase'}`}>
+                {relatorioItem?.claseFecha || 'Sin fecha'}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Clock3 size={12} strokeWidth={1.5} className="text-[#00B0F0]" />
-              <span className="text-[9px] font-semibold text-[#00B0F0] uppercase tracking-wider">
-                {courseData.relatorioItem?.claseHora || 'Sin horario'}
+              <Clock3 size={12} strokeWidth={1.5} className={isExpiredRelatorio ? 'text-slate-400' : 'text-[#00B0F0]'} />
+              <span className={`text-[9px] font-semibold tracking-wider ${isExpiredRelatorio ? 'text-slate-500' : 'text-[#00B0F0] uppercase'}`}>
+                {relatorioItem?.claseHora || 'Sin horario'}
               </span>
             </div>
           </div>

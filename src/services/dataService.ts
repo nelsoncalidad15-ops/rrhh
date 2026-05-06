@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { CourseGrade, RelatorioItem, CollaboratorContact, CoursePhase } from '../types';
+import { CourseGrade, RelatorioItem, CollaboratorContact, CoursePhase, EstandarOperacionalItem } from '../types';
 
 export const normalizeKey = (key: string) => {
   if (!key) return '';
@@ -314,6 +314,56 @@ export const fetchCoursePhasesData = async (url: string): Promise<CoursePhase[]>
     });
   } catch (error) {
     console.error("Error fetching course phases data:", error);
+    throw error;
+  }
+};
+
+export const fetchEstandarOperacionalData = async (url: string): Promise<EstandarOperacionalItem[]> => {
+  try {
+    const response = await fetch(url);
+    const csvText = await response.text();
+
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const data = results.data as any[];
+          
+          const items: EstandarOperacionalItem[] = data.map((row) => {
+            const getVal = (possibleKeys: string[]) => {
+              for (const k of possibleKeys) {
+                if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]).trim();
+              }
+              return '';
+            };
+
+            const parseFloatVal = (val: string) => {
+              if (!val) return 0;
+              return parseFloat(val.replace(',', '.')) || 0;
+            };
+
+            return {
+              anio: getVal(['Año', 'Anio', 'anio', 'ANIO']),
+              provincia: getVal(['Provincia', 'provincia', 'PROVINCIA']),
+              q: getVal(['Q', 'q']),
+              tipo: getVal(['Tipo', 'tipo', 'TIPO', 'Sub Funcion', 'Funcion', 'Adicional']), // In case headers vary
+              funcionPrincipal: getVal(['Funciones Principales', 'Funciones', 'funcion', 'FUNCION']),
+              cantidadCertificados: parseFloatVal(getVal(['Cantidad de certificados', 'Certificados'])),
+              pasosTaller: getVal(['Pasos de taller', 'Pasos']),
+              cantidadPers: getVal(['Cantidad pers Tec/Serv/Op Comercial', 'Cantidad pers']),
+              cantidadCertificadosReales: parseFloatVal(getVal(['Cantidad de certificados Reales', 'Certificados REALES', 'Certificados Reales'])),
+              pasosTallerReal: parseFloatVal(getVal(['Pasos de taller REAL', 'Pasos REAL', 'Pasos REALES']))
+            };
+          }).filter(item => item.funcionPrincipal !== '');
+
+          resolve(items);
+        },
+        error: (error) => reject(error)
+      });
+    });
+  } catch (error) {
+    console.error("Error fetching estandar operacional data:", error);
     throw error;
   }
 };

@@ -40,3 +40,16 @@ export interface CourseGrade {
   icfByFunction?: Record<string, number>;
   coursesByFunction?: Record<string, Record<string, number>>;
 }
+
+export interface EstandarOperacionalItem {
+  anio: string;
+  provincia: string;
+  q: string;
+  tipo: string;
+  funcionPrincipal: string;
+  cantidadCertificados: number;
+  pasosTaller: string;
+  cantidadPers: string;
+  cantidadCertificadosReales: number;
+  pasosTallerReal: number;
+}

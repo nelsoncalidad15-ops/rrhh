@@ -135,7 +135,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
           }`}
         >
           <div>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 font-display ${showPendingOnly ? 'text-white/70' : 'text-slate-400'}`}>Cursos Pendientes</p>
+            <p className={`text-[10px] font-semibold tracking-[0.12em] mb-3 font-display ${showPendingOnly ? 'text-white/70' : 'text-slate-500'}`}>Cursos pendientes</p>
             <h3 className={`text-5xl font-bold font-display tracking-tighter ${showPendingOnly ? 'text-white' : 'text-[#001E50]'}`}>{totalPending}</h3>
             <p className={`text-[11px] mt-3 font-semibold tracking-tight ${showPendingOnly ? 'text-white' : 'text-amber-500'}`}>Colaboradores con pendientes</p>
           </div>
@@ -146,13 +146,13 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-        <div className="flex flex-wrap items-center gap-8">
-          <div className="flex items-center gap-3 text-[#001E50] ml-4">
+      <div className="bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-100">
+        <div className="flex flex-wrap items-center gap-5 sm:gap-8">
+          <div className="flex items-center gap-3 text-[#001E50] ml-1 sm:ml-2">
             <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
               <Filter size={16} className="text-[#00B0F0]" strokeWidth={1.5} />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 font-display">Filtros</span>
+            <span className="text-[10px] font-semibold tracking-[0.12em] text-slate-500 font-display">Filtros</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 flex-1">
@@ -175,7 +175,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
               onChange={setSelectedFunction} 
             />
             <div className="flex flex-col gap-2">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-3 font-display">Colaborador</label>
+              <label className="text-[10px] font-semibold text-slate-500 tracking-[0.08em] ml-3 font-display">Colaborador</label>
               <div className="relative group">
                 <select 
                   value=""
@@ -183,7 +183,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
                     const val = e.target.value;
                     if (val) onSelectCollab(val);
                   }}
-                  className="bg-slate-50 border border-slate-100 text-xs font-semibold text-[#001E50] rounded-2xl px-5 py-3 focus:bg-white focus:border-[#00B0F0] outline-none transition-all duration-300 min-w-[220px] appearance-none cursor-pointer uppercase tracking-tight shadow-sm group-hover:border-slate-200 font-display"
+                  className="bg-slate-50 border border-slate-100 text-xs font-semibold text-[#001E50] rounded-2xl px-5 py-3 focus:bg-white focus:border-[#00B0F0] outline-none transition-all duration-300 min-w-[220px] appearance-none cursor-pointer tracking-[0.04em] shadow-sm group-hover:border-slate-200 font-display"
                 >
                   <option value="">Seleccionar...</option>
                   {grades.map(g => (
@@ -199,7 +199,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
 
           <button 
             onClick={onResetFilters}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-400 hover:text-white hover:bg-rose-500 rounded-2xl transition-all duration-300 text-[10px] font-bold uppercase tracking-widest font-display"
+            className="flex items-center gap-2 px-6 py-3 bg-slate-50 text-slate-500 hover:text-white hover:bg-rose-500 rounded-2xl transition-all duration-300 text-[10px] font-semibold tracking-[0.12em] font-display"
           >
             <X size={16} strokeWidth={1.5} />
             <span>Limpiar</span>
@@ -209,21 +209,21 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] font-display">Listado de Colaboradores</h4>
-          <span className="text-[10px] font-bold text-[#001E50] bg-[#00B0F0]/10 px-5 py-2 rounded-full uppercase tracking-widest font-display">
+        <div className="px-5 sm:px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+          <h4 className="text-[11px] font-semibold text-slate-500 tracking-[0.12em] font-display">Listado de colaboradores</h4>
+          <span className="text-[10px] font-semibold text-[#001E50] bg-[#00B0F0]/10 px-4 py-2 rounded-full tracking-[0.08em] font-display">
             {grades.length} Resultados
           </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-separate border-spacing-0">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] font-display">Colaborador</th>
-                <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] font-display">Unidad</th>
-                <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] font-display">Área</th>
-                <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] font-display">Función</th>
-                <th className="px-8 py-6 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] font-display w-64">Progreso ICF</th>
+                <th className="px-5 sm:px-8 py-5 text-[11px] font-semibold text-slate-500 tracking-[0.08em] font-display">Colaborador</th>
+                <th className="px-5 sm:px-8 py-5 text-[11px] font-semibold text-slate-500 tracking-[0.08em] font-display">Unidad</th>
+                <th className="px-5 sm:px-8 py-5 text-[11px] font-semibold text-slate-500 tracking-[0.08em] font-display">Area</th>
+                <th className="px-5 sm:px-8 py-5 text-[11px] font-semibold text-slate-500 tracking-[0.08em] font-display">Funcion</th>
+                <th className="px-5 sm:px-8 py-5 text-[11px] font-semibold text-slate-500 tracking-[0.08em] font-display w-64">Progreso ICF</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -232,7 +232,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
                   <td colSpan={5} className="px-8 py-20 text-center text-slate-300">
                     <div className="flex flex-col items-center gap-4">
                       <X size={48} className="opacity-10" strokeWidth={1} />
-                      <p className="text-[10px] font-bold uppercase tracking-widest font-display">Sin resultados</p>
+                      <p className="text-[11px] font-semibold tracking-[0.08em] font-display">Sin resultados</p>
                     </div>
                   </td>
                 </tr>
@@ -243,45 +243,45 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
                     onClick={() => onSelectCollab(g.id)}
                     className="hover:bg-slate-50/80 transition-all duration-300 group cursor-pointer"
                   >
-                    <td className="px-8 py-5">
+                    <td className="px-5 sm:px-8 py-5 sm:py-6">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-[#001E50] flex items-center justify-center text-white font-bold text-sm shadow-xl shadow-[#001E50]/10 group-hover:bg-[#00B0F0] group-hover:shadow-[#00B0F0]/20 transition-all duration-500 font-display">
                           {g.colaborador.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <p className="text-base font-bold text-[#001E50] group-hover:text-[#00B0F0] transition-colors duration-300 font-display tracking-tight">{g.colaborador}</p>
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{g.funcion}</p>
+                          <p className="text-[11px] text-slate-400 font-medium tracking-[0.04em] mt-0.5">{g.funcion}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-5 sm:px-8 py-5 sm:py-6">
                       <div className="flex flex-wrap gap-1.5">
                         {g.unidad.split(' | ').filter(Boolean).map((u, i) => (
-                          <span key={i} className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg uppercase tracking-widest font-display">
+                          <span key={i} className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg tracking-[0.04em] font-display">
                             {u}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-5 sm:px-8 py-5 sm:py-6">
                       <div className="flex flex-col gap-1">
                         {g.area.split(' | ').filter(Boolean).map((a, i) => (
-                          <span key={i} className="text-[10px] font-semibold text-slate-400 uppercase tracking-tight">
+                          <span key={i} className="text-[11px] font-medium text-slate-500 tracking-[0.04em]">
                             {a}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-8 py-6">
+                    <td className="px-5 sm:px-8 py-5 sm:py-6">
                       <div className="flex flex-wrap gap-1.5">
                         {g.funcion.split(' | ').filter(Boolean).map((f, i) => (
-                          <span key={i} className="text-[9px] font-bold text-[#00B0F0] uppercase tracking-widest font-display">
+                          <span key={i} className="text-[10px] font-semibold text-[#00B0F0] tracking-[0.04em] font-display">
                             {f}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-5 sm:px-8 py-5 sm:py-6">
                       <div className="space-y-4">
                         {!g.icfByFunction || Object.keys(g.icfByFunction).length <= 1 ? (
                           <div className="space-y-2">
@@ -301,7 +301,7 @@ const RRHHTalentView: React.FC<RRHHTalentViewProps> = ({
                             {Object.entries(g.icfByFunction).map(([func, val]) => (
                               <div key={func} className="space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[120px] font-display">{func}</span>
+                                  <span className="text-[10px] font-semibold text-slate-500 tracking-[0.04em] truncate max-w-[120px] font-display">{func}</span>
                                   <span className={`text-[10px] font-bold font-display ${getICFTextClass(val as number)}`}>{val as number}%</span>
                                 </div>
                                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -339,7 +339,7 @@ interface KPICardProps {
 const KPICard: React.FC<KPICardProps> = ({ title, value, icon, subtitle, color = "bg-white" }) => (
   <div className={`${color} p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-xl transition-all duration-500 ${color === 'bg-white' ? 'hover:shadow-slate-200/50' : 'hover:shadow-[#001E50]/20'}`}>
     <div>
-      <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 font-display ${color === 'bg-white' ? 'text-slate-400' : 'text-white/60'}`}>{title}</p>
+      <p className={`text-[10px] font-semibold tracking-[0.12em] mb-3 font-display ${color === 'bg-white' ? 'text-slate-500' : 'text-white/70'}`}>{title}</p>
       <h3 className={`text-5xl font-bold font-display tracking-tighter ${color === 'bg-white' ? 'text-[#001E50]' : 'text-white'}`}>{value}</h3>
       <p className={`text-[11px] mt-3 font-semibold tracking-tight ${color === 'bg-white' ? 'text-slate-400' : 'text-[#00B0F0]'}`}>{subtitle}</p>
     </div>
@@ -358,12 +358,12 @@ interface FilterSelectProps {
 
 const FilterSelect: React.FC<FilterSelectProps> = ({ label, value, options, onChange }) => (
   <div className="flex flex-col gap-2">
-    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-3 font-display">{label}</label>
+    <label className="text-[10px] font-semibold text-slate-500 tracking-[0.08em] ml-3 font-display">{label}</label>
     <div className="relative group">
       <select 
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-slate-50 border border-slate-100 text-xs font-semibold text-[#001E50] rounded-2xl px-5 py-3 focus:bg-white focus:border-[#00B0F0] outline-none transition-all duration-300 min-w-[180px] appearance-none cursor-pointer uppercase tracking-tight shadow-sm group-hover:border-slate-200 font-display"
+        className="bg-slate-50 border border-slate-100 text-xs font-semibold text-[#001E50] rounded-2xl px-5 py-3 focus:bg-white focus:border-[#00B0F0] outline-none transition-all duration-300 min-w-[180px] appearance-none cursor-pointer tracking-[0.04em] shadow-sm group-hover:border-slate-200 font-display"
       >
         {options.map(opt => (
           <option key={opt} value={opt}>{opt === 'ALL' ? `Todas` : opt}</option>
