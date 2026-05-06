@@ -64,16 +64,25 @@ export function DotacionDashboard() {
     const historicalData = [];
     let currentDotacion = 0;
 
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
     for (let m = 0; m < 12; m++) {
       const date = new Date(year, m + 1, 0); // Ultimo dia del mes
-      const activeAtEnd = filtered.filter(d => {
+      
+      // Si el año es el actual y el mes es futuro, no mostramos dato (null) para que el gráfico se corte
+      const isFutureMonth = year === currentYear && m > currentMonth;
+      
+      const activeAtEnd = isFutureMonth ? [] : filtered.filter(d => {
         if (!d.fechaIngreso || d.fechaIngreso > date) return false;
         if (d.estado === 'Activo') return true;
         return d.fechaNovedad ? d.fechaNovedad > date : true;
       });
+
       historicalData.push({
         name: monthOrder[m].substring(0, 3).toUpperCase(),
-        dotacion: activeAtEnd.length,
+        dotacion: isFutureMonth ? null : activeAtEnd.length,
         fullMonth: monthOrder[m]
       });
       if (filters.mes !== 'Todas' && monthOrder[m].toLowerCase() === filters.mes.toLowerCase()) {
