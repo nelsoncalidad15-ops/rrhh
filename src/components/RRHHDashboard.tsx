@@ -218,7 +218,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
             </div>
 
             <div className="px-4 sm:px-8 py-2 sm:py-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              <nav className="flex flex-wrap items-center gap-1 sm:gap-2">
+              <nav className="flex flex-wrap items-center gap-1 overflow-x-auto no-scrollbar">
                 <TabButton 
                   active={view === 'dashboard'} 
                   onClick={() => setView('dashboard')}
@@ -336,7 +336,7 @@ interface TabButtonProps {
 const TabButton: React.FC<TabButtonProps> = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 transition-all duration-300 relative group rounded-t-2xl ${
+    className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-3 sm:py-4 transition-all duration-300 relative group rounded-t-2xl whitespace-nowrap ${
       active 
         ? 'text-[#00B0F0] font-semibold' 
         : 'text-slate-400 hover:text-[#001E50] font-medium'
@@ -345,7 +345,7 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, icon, label }) =
     <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
       {icon}
     </span>
-    <span className="text-[11px] sm:text-xs font-display tracking-[0.08em]">{label}</span>
+    <span className="text-[10px] sm:text-[11px] font-display tracking-tight sm:tracking-[0.08em]">{label}</span>
     {active && (
       <motion.div 
         layoutId="activeTab"

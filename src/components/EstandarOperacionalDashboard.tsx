@@ -49,18 +49,8 @@ export function EstandarOperacionalDashboard({ data }: Props) {
   }, [data, filters]);
 
   const personnelChartData = useMemo(() => {
-    const allowedFunctions = [
-      'Asesor de servicio',
-      'Asesor de citas',
-      'Adm de Garantia',
-      'Asesor de Repuestos',
-      'Tecnicos (mecanicos,electricistas, etc)',
-      'Lavador'
-    ];
-    
-    // Group by function
+    // Group by function (Showing ALL as requested)
     const grouped = filteredData
-      .filter(d => allowedFunctions.includes(d.funcionPrincipal))
       .reduce((acc, curr) => {
         const key = curr.funcionPrincipal;
         if (!acc[key]) {
@@ -71,23 +61,34 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         return acc;
       }, {} as Record<string, any>);
 
-    // Order according to allowedFunctions
-    return allowedFunctions
-      .map(f => grouped[f])
-      .filter(Boolean);
+    return Object.values(grouped).sort((a, b) => b.recomendado - a.recomendado);
   }, [filteredData]);
 
   const workshopStepsChartData = useMemo(() => {
-    const grouped = filteredData.reduce((acc, curr) => {
-      const key = curr.funcionPrincipal;
-      if (!acc[key]) {
-        acc[key] = { name: key, recomendado: 0, actual: 0 };
-      }
-      const recomendado = parseFloat(String(curr.pasosTaller).replace(',', '.')) || 0;
-      acc[key].recomendado += recomendado;
-      acc[key].actual += curr.pasosTallerReal;
-      return acc;
-    }, {} as Record<string, any>);
+    const criticalFunctions = [
+      'Asesor de servicio',
+      'Asesor de citas',
+      'Adm de Garantia',
+      'Asesor de Repuestos',
+      'Tecnicos (mecanicos,electricistas, etc)',
+      'Lavador'
+    ];
+
+    const grouped = filteredData
+      .filter(d => criticalFunctions.includes(d.funcionPrincipal))
+      .reduce((acc, curr) => {
+        const key = curr.funcionPrincipal;
+        if (!acc[key]) {
+          acc[key] = { name: key, recomendado: 0, actual: 0 };
+        }
+        // Exigencia Marca = Pasos taller (std) * Certificados Reales
+        const stepsStd = parseFloat(String(curr.pasosTaller).replace(',', '.')) || 0;
+        const requirement = stepsStd * curr.cantidadCertificadosReales;
+        
+        acc[key].recomendado += requirement;
+        acc[key].actual += curr.pasosTallerReal;
+        return acc;
+      }, {} as Record<string, any>);
 
     return Object.values(grouped)
       .filter(d => d.recomendado > 0 || d.actual > 0)
@@ -119,106 +120,72 @@ export function EstandarOperacionalDashboard({ data }: Props) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header & Filters */}
-      <section className="glass-card !p-5 overflow-visible">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#001E50] to-[#00B0F0] flex items-center justify-center shadow-xl shadow-[#001E50]/20 text-white shrink-0">
-              <Settings size={28} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-[#001E50] tracking-tight leading-none">Estándar Operacional VW</h2>
-              <p className="text-[10px] font-black text-[#00B0F0] uppercase tracking-[0.2em] mt-2">Panel de Control de Estructura</p>
+      {/* Header & Filters */}
+      <section className="glass-card !p-8 overflow-visible relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#00B0F0] opacity-[0.03] rounded-full -mr-32 -mt-32" />
+        
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 relative">
+          <div className="space-y-4">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#001E50] to-[#00B0F0] flex items-center justify-center shadow-2xl shadow-[#001E50]/30 text-white shrink-0">
+                <Settings size={32} className="animate-spin-slow" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-[#001E50] tracking-tight leading-tight">Estándar Operacional VW</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="h-1 w-8 bg-[#00B0F0] rounded-full" />
+                  <p className="text-[11px] font-black text-[#00B0F0] uppercase tracking-[0.3em]">Panel de Control de Estructura</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 w-full lg:w-auto">
             <FilterSelect label="Año" value={filters.anio} onChange={v => setFilters(f => ({...f, anio: v}))} options={filterOptions.anios} />
             <FilterSelect label="Provincia" value={filters.provincia} onChange={v => setFilters(f => ({...f, provincia: v}))} options={filterOptions.provincias} />
-            <FilterSelect label="Trimestre (Q)" value={filters.q} onChange={v => setFilters(f => ({...f, q: v}))} options={filterOptions.qs} />
+            <FilterSelect label="Trimestre" value={filters.q} onChange={v => setFilters(f => ({...f, q: v}))} options={filterOptions.qs} />
             <FilterSelect label="Tipo" value={filters.tipo} onChange={v => setFilters(f => ({...f, tipo: v}))} options={filterOptions.tipos} />
-            <FilterSelect label="Función" value={filters.funcion} onChange={v => setFilters(f => ({...f, funcion: v}))} options={filterOptions.funciones} />
+            <div className="col-span-2 sm:col-span-1 xl:col-span-1">
+              <FilterSelect label="Función" value={filters.funcion} onChange={v => setFilters(f => ({...f, funcion: v}))} options={filterOptions.funciones} />
+            </div>
           </div>
         </div>
       </section>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard 
-          title="Dotación Recomendada" 
-          value={summaryStats.totalRec} 
-          subtitle="Total según estándar"
-          icon={<Users size={20} />}
-          color="bg-[#00B0F0]"
-        />
-        <KPICard 
-          title="Dotación Actual" 
-          value={summaryStats.totalAct} 
-          subtitle="Total certificados reales"
-          icon={<CheckCircle2 size={20} />}
-          color="bg-[#001E50]"
-        />
-        <KPICard 
-          title="Gap de Estructura" 
-          value={summaryStats.gap} 
-          subtitle="Diferencia a cubrir"
-          icon={<AlertCircle size={20} />}
-          color={summaryStats.gap > 0 ? "bg-amber-500" : "bg-emerald-500"}
-        />
-        <KPICard 
-          title="% Cumplimiento" 
-          value={`${summaryStats.fulfillment.toFixed(1)}%`} 
-          subtitle="Nivel de cobertura"
-          icon={<Settings size={20} />}
-          color="bg-indigo-500"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="group relative">
+          <div className="absolute inset-0 bg-[#00B0F0] opacity-[0.05] blur-3xl rounded-full scale-75 group-hover:scale-100 transition-transform duration-700" />
+          <KPICard 
+            title="Cantidad de certificados" 
+            value={summaryStats.totalRec} 
+            subtitle="Total proyectado según estándar de marca"
+            icon={<Users size={24} />}
+            color="bg-[#00B0F0]"
+            variant="primary"
+          />
+        </div>
+        <div className="group relative">
+          <div className="absolute inset-0 bg-[#001E50] opacity-[0.05] blur-3xl rounded-full scale-75 group-hover:scale-100 transition-transform duration-700" />
+          <KPICard 
+            title="Certificados Reales" 
+            value={summaryStats.totalAct} 
+            subtitle="Total de dotación certificada actualmente"
+            icon={<CheckCircle2 size={24} />}
+            color="bg-[#001E50]"
+            variant="secondary"
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Chart 1: Personnel Comparison */}
-        <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-certificates">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dotación Crítica: Rec. vs Real</h3>
-              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Comparativa por Funciones Principales</p>
-            </div>
-            <button onClick={() => handleDownload('chart-certificates', 'comparativa_dotacion')} className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-50 rounded-xl transition-all shadow-sm">
-              <Download size={18} className="text-[#001E50]" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={personnelChartData} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45} 
-                  textAnchor="end" 
-                  interval={0} 
-                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 700 }} 
-                  height={100}
-                />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc', opacity: 0.4 }} 
-                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }} 
-                />
-                <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 700 }} />
-                <Bar dataKey="recomendado" name="Cert. Recomendados" fill="#00B0F0" radius={[6, 6, 0, 0]} barSize={24}>
-                  <LabelList dataKey="recomendado" position="top" style={{ fontSize: '11px', fontWeight: '800', fill: '#00B0F0' }} />
-                </Bar>
-                <Bar dataKey="actual" name="Cert. Reales" fill="#001E50" radius={[6, 6, 0, 0]} barSize={24}>
-                  <LabelList dataKey="actual" position="top" style={{ fontSize: '11px', fontWeight: '800', fill: '#001E50' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Chart 2: Workshop Steps */}
+      <div className="grid grid-cols-1 gap-6">
+        {/* Chart: Workshop Steps */}
         <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-steps">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Pasos de Taller: Rec. vs Real</h3>
-              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Capacidad Operativa por Función</p>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Pasos de Taller: Exigencia vs Real</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Cálculo: Pasos Std × Certificados Reales</p>
             </div>
             <button onClick={() => handleDownload('chart-steps', 'comparativa_pasos')} className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-50 rounded-xl transition-all shadow-sm">
               <Download size={18} className="text-[#001E50]" />
@@ -242,7 +209,7 @@ export function EstandarOperacionalDashboard({ data }: Props) {
                   contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }} 
                 />
                 <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 700 }} />
-                <Bar dataKey="recomendado" name="Pasos Rec." fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={24}>
+                <Bar dataKey="recomendado" name="Exigencia Marca" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={24}>
                   <LabelList dataKey="recomendado" position="top" style={{ fontSize: '11px', fontWeight: '800', fill: '#0ea5e9' }} />
                 </Bar>
                 <Bar dataKey="actual" name="Pasos Reales" fill="#4f46e5" radius={[6, 6, 0, 0]} barSize={24}>
@@ -293,7 +260,9 @@ export function EstandarOperacionalDashboard({ data }: Props) {
                     </span>
                   </td>
                   <td className="px-8 py-4 text-center">
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{item.pasosTaller}</span>
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+                      {(parseFloat(String(item.pasosTaller).replace(',', '.')) || 0) * item.cantidadCertificadosReales}
+                    </span>
                   </td>
                   <td className="px-8 py-4 text-center">
                     <span className="text-xs font-black text-[#001E50] bg-slate-100 px-2 py-1 rounded-md">{item.pasosTallerReal}</span>
@@ -334,20 +303,23 @@ function FilterSelect({ label, value, onChange, options }: { label: string, valu
   );
 }
 
-function KPICard({ title, value, subtitle, icon, color }: { title: string, value: string | number, subtitle: string, icon: React.ReactNode, color: string }) {
+function KPICard({ title, value, subtitle, icon, color, variant }: { title: string, value: string | number, subtitle: string, icon: React.ReactNode, color: string, variant?: 'primary' | 'secondary' }) {
   return (
-    <div className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-current transition-all group overflow-hidden relative" style={{ color: color.includes('[') ? color.match(/\[(.*?)\]/)?.[1] : undefined }}>
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{title}</p>
-          <p className="text-3xl font-black text-[#001E50] group-hover:scale-105 transition-transform origin-left">{value}</p>
-          <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-tighter">{subtitle}</p>
+    <div className={`glass-card !p-8 border-t-4 ${variant === 'primary' ? 'border-t-[#00B0F0]' : 'border-t-[#001E50]'} hover:shadow-2xl hover:shadow-slate-200 transition-all duration-500 group overflow-hidden relative min-h-[160px] flex items-center`}>
+      <div className="flex justify-between items-center w-full relative z-10">
+        <div className="space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</p>
+          <p className={`text-5xl font-black ${variant === 'primary' ? 'text-[#00B0F0]' : 'text-[#001E50]'} tracking-tight group-hover:scale-105 transition-transform duration-500 origin-left`}>
+            {value}
+          </p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide opacity-80">{subtitle}</p>
         </div>
-        <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center text-white shadow-lg shadow-current/20`}>
+        <div className={`w-16 h-16 rounded-2xl ${color} flex items-center justify-center text-white shadow-2xl shadow-current/30 group-hover:rotate-6 transition-transform duration-500`}>
           {icon}
         </div>
       </div>
-      <div className={`absolute -bottom-6 -right-6 w-24 h-24 rounded-full ${color} opacity-[0.03] group-hover:scale-150 transition-transform duration-700`} />
+      {/* Decorative background element */}
+      <div className={`absolute -bottom-10 -right-10 w-40 h-40 rounded-full ${color} opacity-[0.02] group-hover:scale-150 transition-transform duration-1000`} />
     </div>
   );
 }
