@@ -233,9 +233,9 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Chart: Personnel by Workload */}
-        <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-dotacion-carga">
+        <div className="glass-card p-6 h-[450px] flex flex-col relative group" id="chart-dotacion-carga">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dotación: Necesaria (según Carga) vs Real</h3>
@@ -275,7 +275,7 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         </div>
 
         {/* Chart: Workshop Steps */}
-        <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-steps">
+        <div className="glass-card p-6 h-[450px] flex flex-col relative group" id="chart-steps">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Pasos de Taller: Exigencia vs Real</h3>
