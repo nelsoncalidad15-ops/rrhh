@@ -358,9 +358,79 @@ export function EstandarOperacionalDashboard({ data }: Props) {
           </table>
         </div>
       </section>
+
+      {/* Brand Standards Quick Guide (Screenshot Friendly) */}
+      <section className="glass-card !p-6">
+        <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+             <Settings size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Guía de Estándares de Marca (Referencia)</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">Resumen de exigencias para captura de pantalla</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {BRAND_STANDARDS.map((std, i) => (
+            <div key={i} className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex flex-col justify-between hover:border-indigo-200 transition-colors group">
+              <p className="text-[10px] font-black text-[#001E50] leading-tight mb-2 group-hover:text-indigo-600 transition-colors uppercase tracking-tighter">{std.role}</p>
+              <div className="flex items-center justify-between gap-1 mt-auto">
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Cert.</span>
+                  <span className="text-[11px] font-black text-indigo-600">{std.certs}</span>
+                </div>
+                <div className="flex flex-col text-right">
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{std.steps === '-' ? 'Criterio' : 'Pasos'}</span>
+                  <span className="text-[10px] font-bold text-slate-700 truncate max-w-[80px]" title={std.steps === '-' ? std.condition : std.steps}>
+                    {std.steps === '-' ? std.condition : std.steps}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center opacity-50">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">© Autosol Jujuy - Estándar Operacional VW</p>
+          <div className="flex gap-4">
+             <div className="flex items-center gap-1.5">
+               <div className="w-2 h-2 rounded-full bg-indigo-600" />
+               <span className="text-[8px] font-black text-slate-500 uppercase">Certs: Cantidad</span>
+             </div>
+             <div className="flex items-center gap-1.5">
+               <div className="w-2 h-2 rounded-full bg-slate-400" />
+               <span className="text-[8px] font-black text-slate-500 uppercase">Pasos: Std/Carga</span>
+             </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
+
+const BRAND_STANDARDS = [
+  { role: 'Asesor de servicio', certs: '1', steps: '12', condition: '-' },
+  { role: 'Asesor de citas', certs: '1', steps: '24', condition: '-' },
+  { role: 'Gerente de Servicio', certs: '1', steps: '-', condition: '≥ 3 asesores' },
+  { role: 'Gerente de Repuestos', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Jefe de taller', certs: '1', steps: '-', condition: '≥ 5 técnicos' },
+  { role: 'Adm de Garantia', certs: '1', steps: '10', condition: 'siempre' },
+  { role: 'Asesor de Repuestos', certs: '1', steps: '12', condition: '-' },
+  { role: 'Gerente de PVT', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Técnicos (Mec/Elec)', certs: '1', steps: '3', condition: '-' },
+  { role: 'RAD', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Vendedor Nora', certs: '1', steps: '1', condition: '1' },
+  { role: 'Coord de Capacitación', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Master Técnico', certs: '1', steps: '30/día', condition: '-' },
+  { role: 'Asesor Comercial', certs: '1', steps: '-', condition: '40' },
+  { role: 'Lavador', certs: '1', steps: '12', condition: '-' },
+  { role: 'Tec en Mantenimiento', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Tec en Diagnóstico', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Seguridad Producto', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Coord de IT', certs: '1', steps: 'siempre', condition: 'siempre' },
+  { role: 'Coord de Campaña', certs: '1', steps: 'siempre', condition: 'siempre' },
+];
 
 function FilterSelect({ label, value, onChange, options }: { label: string, value: string, onChange: (v: string) => void, options: string[] }) {
   return (
