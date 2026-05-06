@@ -114,8 +114,13 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         }
         
         const stepsStd = parseFloat(String(curr.pasosTaller).replace(',', '.')) || 0;
-        // Dotación Necesaria = Pasos Reales / Pasos Std
-        const needed = stepsStd > 0 ? (curr.pasosTallerReal / stepsStd) : 0;
+        // SPECIAL CASE: Adm de Garantía is a fixed threshold (1 if steps >= 10, max 1)
+        let needed = 0;
+        if (key === 'Adm de Garantia') {
+          needed = curr.pasosTallerReal >= 10 ? 1 : 0;
+        } else {
+          needed = stepsStd > 0 ? (curr.pasosTallerReal / stepsStd) : 0;
+        }
         
         acc[key].necesario += needed;
         acc[key].actual += curr.cantidadCertificadosReales;
@@ -460,7 +465,7 @@ const BRAND_STANDARDS = [
   { role: 'Gerente de Servicio', certs: '1', steps: '-', condition: '≥ 3 asesores' },
   { role: 'Gerente de Repuestos', certs: '1', steps: 'siempre', condition: 'siempre' },
   { role: 'Jefe de taller', certs: '1', steps: '-', condition: '≥ 5 técnicos' },
-  { role: 'Adm de Garantia', certs: '1', steps: '10', condition: 'siempre' },
+  { role: 'Adm de Garantia', certs: '1', steps: 'si ≥ 10', condition: 'fijo' },
   { role: 'Asesor de Repuestos', certs: '1', steps: '12', condition: '-' },
   { role: 'Gerente de PVT', certs: '1', steps: 'siempre', condition: 'siempre' },
   { role: 'Tecnicos (mecanicos,electricistas, etc)', certs: '1', steps: '3', condition: '-' },
