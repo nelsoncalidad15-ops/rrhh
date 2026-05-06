@@ -302,52 +302,54 @@ export function EstandarOperacionalDashboard({ data }: Props) {
       <section className="glass-card overflow-hidden !p-0">
         <div className="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
           <div>
-            <h3 className="text-xs font-black uppercase tracking-[0.15em] text-[#001E50]">Matriz de Detalle Estándar</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1">Registros filtrados: {filteredData.length}</p>
+            <h3 className="text-xs font-black uppercase tracking-[0.15em] text-[#001E50]">Matriz de Detalle Estándar (Referencia vs Real)</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Visualización de estándares de marca y cumplimiento actual</p>
+          </div>
+          <div className="bg-white px-3 py-1 rounded-full border border-slate-200">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Registros: <span className="text-[#001E50]">{filteredData.length}</span></p>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white border-b border-slate-100">
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Función / Tipo</th>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Cert. Rec.</th>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Cert. Real</th>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pasos Rec.</th>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Pasos Real</th>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ubicación</th>
+                <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Funciones Principales</th>
+                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Cant. Certificados</th>
+                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Pasos de Taller</th>
+                <th className="px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Cant. Pers (Tec/Serv/Op)</th>
+                <th className="px-4 py-4 text-[9px] font-black text-[#00B0F0] uppercase tracking-widest text-center">Cert. Real</th>
+                <th className="px-4 py-4 text-[9px] font-black text-[#001E50] uppercase tracking-widest text-center">Pasos Real</th>
+                <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ubicación</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredData.map((item, i) => (
                 <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-8 py-4">
-                    <p className="text-[13px] font-bold text-[#001E50] group-hover:text-[#00B0F0] transition-colors">{item.funcionPrincipal}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${item.tipo === 'Funcion' ? 'bg-[#00B0F0]' : 'bg-indigo-400'}`} />
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{item.tipo}</p>
-                    </div>
+                  <td className="px-6 py-4">
+                    <p className="text-[12px] font-bold text-[#001E50] group-hover:text-[#00B0F0] transition-colors">{item.funcionPrincipal}</p>
+                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-tighter mt-0.5">{item.tipo}</p>
                   </td>
-                  <td className="px-8 py-4 text-center">
+                  <td className="px-4 py-4 text-center">
                     <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{item.cantidadCertificados}</span>
                   </td>
-                  <td className="px-8 py-4 text-center">
+                  <td className="px-4 py-4 text-center">
+                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{item.pasosTaller || '-'}</span>
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <span className="text-[10px] font-bold text-slate-500 italic">{item.cantidadPers || '-'}</span>
+                  </td>
+                  <td className="px-4 py-4 text-center">
                     <span className={`text-xs font-black px-2 py-1 rounded-md ${item.cantidadCertificadosReales >= item.cantidadCertificados ? 'text-emerald-600 bg-emerald-50' : 'text-[#001E50] bg-slate-100'}`}>
                       {item.cantidadCertificadosReales}
                     </span>
                   </td>
-                  <td className="px-8 py-4 text-center">
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                      {(parseFloat(String(item.pasosTaller).replace(',', '.')) || 0) * item.cantidadCertificadosReales}
-                    </span>
-                  </td>
-                  <td className="px-8 py-4 text-center">
+                  <td className="px-4 py-4 text-center">
                     <span className="text-xs font-black text-[#001E50] bg-slate-100 px-2 py-1 rounded-md">{item.pasosTallerReal}</span>
                   </td>
-                  <td className="px-8 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 bg-[#001E50]/5 text-[#001E50] text-[9px] font-black uppercase rounded-md border border-[#001E50]/10">{item.provincia}</span>
-                      <span className="px-2 py-1 bg-[#00B0F0]/5 text-[#00B0F0] text-[9px] font-black uppercase rounded-md border border-[#00B0F0]/10">{item.q}</span>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 bg-[#001E50]/5 text-[#001E50] text-[8px] font-black uppercase rounded border border-[#001E50]/10">{item.provincia}</span>
+                      <span className="px-1.5 py-0.5 bg-[#00B0F0]/5 text-[#00B0F0] text-[8px] font-black uppercase rounded border border-[#00B0F0]/10">{item.q}</span>
                     </div>
                   </td>
                 </tr>
