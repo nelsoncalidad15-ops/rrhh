@@ -141,6 +141,18 @@ export function EstandarOperacionalDashboard({ data }: Props) {
     return { totalRec, totalAct, gap, fulfillment };
   }, [personnelChartData]);
 
+  const realDataByRole = useMemo(() => {
+    return filteredData.reduce((acc, curr) => {
+      const role = curr.funcionPrincipal;
+      if (!acc[role]) {
+        acc[role] = { certReal: 0, stepsReal: 0 };
+      }
+      acc[role].certReal += curr.cantidadCertificadosReales;
+      acc[role].stepsReal += curr.pasosTallerReal;
+      return acc;
+    }, {} as Record<string, { certReal: number, stepsReal: number }>);
+  }, [filteredData]);
+
   const handleDownload = (id: string, name: string) => {
     const node = document.getElementById(id);
     if (node) {
@@ -372,23 +384,48 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         </div>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {BRAND_STANDARDS.map((std, i) => (
-            <div key={i} className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex flex-col justify-between hover:border-indigo-200 transition-colors group">
-              <p className="text-[10px] font-black text-[#001E50] leading-tight mb-2 group-hover:text-indigo-600 transition-colors uppercase tracking-tighter">{std.role}</p>
-              <div className="flex items-center justify-between gap-1 mt-auto">
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Cert.</span>
-                  <span className="text-[11px] font-black text-indigo-600">{std.certs}</span>
+          {BRAND_STANDARDS.map((std, i) => {
+            const real = realDataByRole[std.role] || { certReal: 0, stepsReal: 0 };
+            const hasRealData = !!realDataByRole[std.role];
+
+            return (
+              <div key={i} className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex flex-col hover:border-indigo-200 transition-colors group">
+                <p className="text-[10px] font-black text-[#001E50] leading-tight mb-2 group-hover:text-indigo-600 transition-colors uppercase tracking-tighter truncate" title={std.role}>
+                  {std.role}
+                </p>
+                
+                {/* Standard Row */}
+                <div className="flex items-center justify-between gap-1 mb-2 border-b border-slate-100/50 pb-2">
+                  <div className="flex flex-col">
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Cert. Marca</span>
+                    <span className="text-[10px] font-black text-slate-600">{std.certs}</span>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{std.steps === '-' ? 'Criterio' : 'Pasos Std'}</span>
+                    <span className="text-[9px] font-bold text-slate-500 truncate max-w-[70px]">
+                      {std.steps === '-' ? std.condition : std.steps}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col text-right">
-                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{std.steps === '-' ? 'Criterio' : 'Pasos'}</span>
-                  <span className="text-[10px] font-bold text-slate-700 truncate max-w-[80px]" title={std.steps === '-' ? std.condition : std.steps}>
-                    {std.steps === '-' ? std.condition : std.steps}
-                  </span>
+
+                {/* Actual Row (New) */}
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex flex-col">
+                    <span className="text-[7px] font-black text-[#00B0F0] uppercase tracking-widest">Cert. Real</span>
+                    <span className={`text-[10px] font-black ${hasRealData ? 'text-[#00B0F0]' : 'text-slate-300'}`}>
+                      {real.certReal}
+                    </span>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[7px] font-black text-[#001E50] uppercase tracking-widest">Pasos Real</span>
+                    <span className={`text-[10px] font-black ${hasRealData ? 'text-[#001E50]' : 'text-slate-300'}`}>
+                      {real.stepsReal}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
         <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center opacity-50">
@@ -418,7 +455,7 @@ const BRAND_STANDARDS = [
   { role: 'Adm de Garantia', certs: '1', steps: '10', condition: 'siempre' },
   { role: 'Asesor de Repuestos', certs: '1', steps: '12', condition: '-' },
   { role: 'Gerente de PVT', certs: '1', steps: 'siempre', condition: 'siempre' },
-  { role: 'Técnicos (Mec/Elec)', certs: '1', steps: '3', condition: '-' },
+  { role: 'Tecnicos (mecanicos,electricistas, etc)', certs: '1', steps: '3', condition: '-' },
   { role: 'RAD', certs: '1', steps: 'siempre', condition: 'siempre' },
   { role: 'Vendedor Nora', certs: '1', steps: '1', condition: '1' },
   { role: 'Coord de Capacitación', certs: '1', steps: 'siempre', condition: 'siempre' },
