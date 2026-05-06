@@ -95,6 +95,43 @@ export function EstandarOperacionalDashboard({ data }: Props) {
       .sort((a, b) => b.recomendado - a.recomendado);
   }, [filteredData]);
 
+  const personnelByWorkloadChartData = useMemo(() => {
+    const criticalFunctions = [
+      'Asesor de servicio',
+      'Asesor de citas',
+      'Adm de Garantia',
+      'Asesor de Repuestos',
+      'Tecnicos (mecanicos,electricistas, etc)',
+      'Lavador'
+    ];
+
+    const grouped = filteredData
+      .filter(d => criticalFunctions.includes(d.funcionPrincipal))
+      .reduce((acc, curr) => {
+        const key = curr.funcionPrincipal;
+        if (!acc[key]) {
+          acc[key] = { name: key, necesario: 0, actual: 0 };
+        }
+        
+        const stepsStd = parseFloat(String(curr.pasosTaller).replace(',', '.')) || 0;
+        // Dotación Necesaria = Pasos Reales / Pasos Std
+        const needed = stepsStd > 0 ? (curr.pasosTallerReal / stepsStd) : 0;
+        
+        acc[key].necesario += needed;
+        acc[key].actual += curr.cantidadCertificadosReales;
+        return acc;
+      }, {} as Record<string, any>);
+
+    return Object.values(grouped)
+      .map(d => ({
+        ...d,
+        necesario: Number(d.necesario.toFixed(1)),
+        actual: d.actual
+      }))
+      .filter(d => d.necesario > 0 || d.actual > 0)
+      .sort((a, b) => b.necesario - a.necesario);
+  }, [filteredData]);
+
   const summaryStats = useMemo(() => {
     const totalRec = personnelChartData.reduce((sum, d) => sum + d.recomendado, 0);
     const totalAct = personnelChartData.reduce((sum, d) => sum + d.actual, 0);
@@ -179,7 +216,47 @@ export function EstandarOperacionalDashboard({ data }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 gap-8">
+        {/* Chart: Personnel by Workload */}
+        <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-dotacion-carga">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dotación: Necesaria (según Carga) vs Real</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Cálculo: Pasos Reales / Pasos Std</p>
+            </div>
+            <button onClick={() => handleDownload('chart-dotacion-carga', 'dotacion_necesaria_carga')} className="opacity-0 group-hover:opacity-100 p-2 hover:bg-slate-50 rounded-xl transition-all shadow-sm">
+              <Download size={18} className="text-[#001E50]" />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={personnelByWorkloadChartData} margin={{ top: 20, right: 30, left: 0, bottom: 80 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  interval={0} 
+                  tick={{ fontSize: 9, fill: '#64748b', fontWeight: 700 }} 
+                  height={100}
+                />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc', opacity: 0.4 }} 
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }} 
+                />
+                <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 700 }} />
+                <Bar dataKey="necesario" name="Dotación Necesaria" fill="#00B0F0" radius={[6, 6, 0, 0]} barSize={24}>
+                  <LabelList dataKey="necesario" position="top" style={{ fontSize: '11px', fontWeight: '800', fill: '#00B0F0' }} />
+                </Bar>
+                <Bar dataKey="actual" name="Dotación Real" fill="#001E50" radius={[6, 6, 0, 0]} barSize={24}>
+                  <LabelList dataKey="actual" position="top" style={{ fontSize: '11px', fontWeight: '800', fill: '#001E50' }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         {/* Chart: Workshop Steps */}
         <div className="glass-card p-6 h-[550px] flex flex-col relative group" id="chart-steps">
           <div className="flex justify-between items-center mb-8">
