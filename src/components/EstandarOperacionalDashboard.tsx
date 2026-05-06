@@ -383,46 +383,54 @@ export function EstandarOperacionalDashboard({ data }: Props) {
           </div>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2">
           {BRAND_STANDARDS.map((std, i) => {
             const real = realDataByRole[std.role] || { certReal: 0, stepsReal: 0 };
             const hasRealData = !!realDataByRole[std.role];
+            const isNumericSteps = !isNaN(Number(std.steps)) && std.steps !== '-';
 
             return (
-              <div key={i} className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex flex-col hover:border-indigo-200 transition-colors group">
-                <p className="text-[10px] font-black text-[#001E50] leading-tight mb-2 group-hover:text-indigo-600 transition-colors uppercase tracking-tighter truncate" title={std.role}>
+              <div key={i} className="bg-slate-50/50 border border-slate-100 rounded-lg p-2 flex flex-col hover:border-indigo-200 transition-colors group">
+                <p className="text-[9px] font-black text-[#001E50] leading-tight mb-1.5 group-hover:text-indigo-600 transition-colors uppercase tracking-tighter truncate" title={std.role}>
                   {std.role}
                 </p>
                 
-                {/* Standard Row */}
-                <div className="flex items-center justify-between gap-1 mb-2 border-b border-slate-100/50 pb-2">
+                {/* Certificates Row (Always shown) */}
+                <div className="flex items-center justify-between gap-1 mb-1 border-b border-slate-100/50 pb-1">
                   <div className="flex flex-col">
-                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Cert. Marca</span>
+                    <span className="text-[6px] font-black text-slate-400 uppercase">Marca</span>
                     <span className="text-[10px] font-black text-slate-600">{std.certs}</span>
                   </div>
                   <div className="flex flex-col text-right">
-                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{std.steps === '-' ? 'Criterio' : 'Pasos Std'}</span>
-                    <span className="text-[9px] font-bold text-slate-500 truncate max-w-[70px]">
-                      {std.steps === '-' ? std.condition : std.steps}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actual Row (New) */}
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex flex-col">
-                    <span className="text-[7px] font-black text-[#00B0F0] uppercase tracking-widest">Cert. Real</span>
+                    <span className="text-[6px] font-black text-[#00B0F0] uppercase">Real</span>
                     <span className={`text-[10px] font-black ${hasRealData ? 'text-[#00B0F0]' : 'text-slate-300'}`}>
                       {real.certReal}
                     </span>
                   </div>
-                  <div className="flex flex-col text-right">
-                    <span className="text-[7px] font-black text-[#001E50] uppercase tracking-widest">Pasos Real</span>
-                    <span className={`text-[10px] font-black ${hasRealData ? 'text-[#001E50]' : 'text-slate-300'}`}>
-                      {real.stepsReal}
+                </div>
+
+                {/* Steps Row (Only if numeric) */}
+                {isNumericSteps ? (
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex flex-col">
+                      <span className="text-[6px] font-black text-slate-400 uppercase">Pasos Std</span>
+                      <span className="text-[9px] font-bold text-slate-500">{std.steps}</span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                      <span className="text-[6px] font-black text-[#001E50] uppercase">Pasos Real</span>
+                      <span className={`text-[9px] font-black ${hasRealData ? 'text-[#001E50]' : 'text-slate-300'}`}>
+                        {real.stepsReal}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[6px] font-black text-slate-300 uppercase tracking-widest">Estándar</span>
+                    <span className="text-[8px] font-bold text-slate-400 truncate max-w-[60px]" title={std.condition}>
+                      {std.condition}
                     </span>
                   </div>
-                </div>
+                )}
               </div>
             );
           })}
