@@ -1,18 +1,37 @@
 import React, { useMemo, useState } from 'react';
-import { 
-  Users, 
-  TrendingDown, 
-  UserMinus, 
-  PieChart as PieChartIcon,
-  Filter
+import {
+  Users,
+  TrendingDown,
+  Filter,
+  Download
 } from 'lucide-react';
-import { useRotacionData, EmpleadoRecord } from '../services/rotacionService';
-import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, ComposedChart, LabelList
+import { useRotacionData } from '../services/rotacionService';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LabelList
 } from 'recharts';
 import { toPng } from 'html-to-image';
-import { Download } from 'lucide-react';
+
+const MONTH_ORDER = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const COLORS = ['#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#f43f5e'];
+
+type ChartFilter =
+  | { type: 'mes'; value: string }
+  | { type: 'motivo'; value: string }
+  | { type: 'area'; value: string }
+  | null;
 
 export function RotacionDashboard() {
   const { data, loading, error } = useRotacionData();
@@ -22,104 +41,121 @@ export function RotacionDashboard() {
     ano: new Date().getFullYear().toString(),
     mes: 'Todas',
   });
-  const [chartFilter, setChartFilter] = useState<{ type: 'mes' | 'motivo' | 'area', value: string } | null>(null);
+  const [chartFilter, setChartFilter] = useState<ChartFilter>(null);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    if (key === 'mes' && value === 'Todas' && chartFilter?.type === 'mes') {
+      setChartFilter(null);
+    }
+  };
+
+  const handleChartFilter = (next: Exclude<ChartFilter, null>) => {
+    setChartFilter(current => (
+      current?.type === next.type && current.value === next.value ? null : next
+    ));
   };
 
   const filterOptions = useMemo(() => {
     if (!data.length) return { localidades: [], anos: [], meses: [] };
-    
+
     const years = new Set<string>();
     data.forEach(d => {
       if (d.fechaIngreso) years.add(d.fechaIngreso.getFullYear().toString());
       if (d.fechaNovedad) years.add(d.fechaNovedad.getFullYear().toString());
     });
 
-    const monthOrder = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-
     return {
       localidades: Array.from(new Set(data.map(d => d.localidad).filter(Boolean))).sort(),
-      anos: Array.from(years).sort((a, b) => b.localeCompare(a)), // Descending
-      meses: monthOrder
+      anos: Array.from(years).sort((a, b) => b.localeCompare(a)),
+      meses: MONTH_ORDER
     };
   }, [data]);
 
-  const { filteredData, monthlyStats, motives, areas, kpis } = useMemo(() => {
-    if (!data.length) return { filteredData: [], monthlyStats: [], motives: [], areas: [], kpis: { acumulada: 0 } };
+  const { filteredPeople, monthlyStats, motives, areas, kpis } = useMemo(() => {
+    if (!data.length) {
+      return {
+        filteredPeople: [] as string[],
+        monthlyStats: [] as Array<{
+          mes: string;
+          nombreMes: string;
+          nombreMesCompleto: string;
+          rotacionMensual: number;
+          rotacionInteranual: number;
+          rotacionVoluntaria: number;
+          rotacionVolTemprana: number;
+          bajas: number;
+        }>,
+        motives: [] as Array<{ name: string; value: number }>,
+        areas: [] as Array<{ name: string; value: number }>,
+        kpis: { acumulada: 0, mensual: 0, mensualLabel: '-' }
+      };
+    }
 
-    // Filtrar data por localidad y año
     let filtered = data;
     if (filters.localidad !== 'Todas') {
       filtered = filtered.filter(d => d.localidad === filters.localidad);
     }
-    
-    const year = parseInt(filters.ano, 10) || new Date().getFullYear();
 
-    // Calcular estadísticas mensuales
-    const monthsData = [];
+    const year = parseInt(filters.ano, 10) || new Date().getFullYear();
+    const monthsData: Array<{
+      mes: string;
+      nombreMes: string;
+      nombreMesCompleto: string;
+      rotacionMensual: number;
+      rotacionInteranual: number;
+      rotacionVoluntaria: number;
+      rotacionVolTemprana: number;
+      bajas: number;
+    }> = [];
+
     let bajasTotalesAnuales = 0;
     let dotacionPromedioTotal = 0;
     let mesesConData = 0;
 
-    const monthOrder = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-
     for (let month = 0; month < 12; month++) {
-      if (filters.mes !== 'Todas' && monthOrder[month].toLowerCase() !== filters.mes.toLowerCase()) {
+      if (filters.mes !== 'Todas' && MONTH_ORDER[month] !== filters.mes.toLowerCase()) {
         continue;
       }
 
-      const endOfMonth = new Date(year, month + 1, 0); // Last day of month
-      
-      // Dotación al final del mes
+      const endOfMonth = new Date(year, month + 1, 0);
       const activosAlFinal = filtered.filter(d => {
         if (!d.fechaIngreso || d.fechaIngreso > endOfMonth) return false;
         if (d.estado === 'Activo') return true;
-        if (d.fechaNovedad && d.fechaNovedad > endOfMonth) return true;
-        return false;
+        return d.fechaNovedad ? d.fechaNovedad > endOfMonth : false;
       });
 
-      const countActivos = activosAlFinal.length;
-      
-      // Bajas en el mes
-      const bajasEnMes = filtered.filter(d => {
-        return d.fechaNovedad && 
-               d.fechaNovedad.getFullYear() === year && 
-               d.fechaNovedad.getMonth() === month;
-      });
+      const bajasEnMes = filtered.filter(d =>
+        d.fechaNovedad &&
+        d.fechaNovedad.getFullYear() === year &&
+        d.fechaNovedad.getMonth() === month
+      );
 
-      const countBajas = bajasEnMes.length;
-
-      // Voluntaria: Renuncia
-      const voluntarias = bajasEnMes.filter(d => d.motivoNovedad && d.motivoNovedad.toLowerCase().includes('renuncia'));
-      
-      // Temprana: < 1 año de antigüedad
+      const voluntarias = bajasEnMes.filter(d => (d.motivoNovedad || '').toLowerCase().includes('renuncia'));
       const voluntariasTempranas = voluntarias.filter(d => {
         if (!d.fechaIngreso || !d.fechaNovedad) return false;
-        const diffDays = (d.fechaNovedad.getTime() - d.fechaIngreso.getTime()) / (1000 * 3600 * 24);
+        const diffDays = (d.fechaNovedad.getTime() - d.fechaIngreso.getTime()) / (1000 * 60 * 60 * 24);
         return diffDays < 365;
       });
 
+      const countActivos = activosAlFinal.length;
+      const countBajas = bajasEnMes.length;
       const rotacionMensual = countActivos > 0 ? (countBajas / countActivos) * 100 : 0;
       const rotacionVoluntaria = countActivos > 0 ? (voluntarias.length / countActivos) * 100 : 0;
       const rotacionVolTemprana = countActivos > 0 ? (voluntariasTempranas.length / countActivos) * 100 : 0;
-      // Rotacion Interanual (Anualizada)
-      const rotacionInteranual = rotacionMensual * 12;
-
-      const mesStr = `${year}-${(month + 1).toString().padStart(2, '0')}`;
 
       if (countActivos > 0 || countBajas > 0) {
         monthsData.push({
-          mes: mesStr,
-          nombreMes: monthOrder[month].substring(0, 3).toUpperCase(),
+          mes: `${year}-${String(month + 1).padStart(2, '0')}`,
+          nombreMes: MONTH_ORDER[month].substring(0, 3).toUpperCase(),
+          nombreMesCompleto: MONTH_ORDER[month],
           rotacionMensual,
-          rotacionInteranual,
+          rotacionInteranual: rotacionMensual * 12,
           rotacionVoluntaria,
           rotacionVolTemprana,
           bajas: countBajas
         });
-        
+
         bajasTotalesAnuales += countBajas;
         dotacionPromedioTotal += countActivos;
         mesesConData++;
@@ -129,28 +165,25 @@ export function RotacionDashboard() {
     const dotacionPromedioAnual = mesesConData > 0 ? dotacionPromedioTotal / mesesConData : 0;
     const rotacionAcumuladaAnual = dotacionPromedioAnual > 0 ? (bajasTotalesAnuales / dotacionPromedioAnual) * 100 : 0;
 
-    // Bajas en todo el año para motivos y areas
     const bajasAnuales = filtered.filter(d => {
-        const enAno = d.fechaNovedad && d.fechaNovedad.getFullYear() === year;
-        if (filters.mes !== 'Todas') {
-          const m = monthOrder.findIndex(mo => mo.toLowerCase() === filters.mes.toLowerCase());
-          return enAno && d.fechaNovedad!.getMonth() === m;
-        }
-        return enAno;
+      const enAno = d.fechaNovedad && d.fechaNovedad.getFullYear() === year;
+      if (!enAno) return false;
+      if (filters.mes === 'Todas') return true;
+      const monthIndex = MONTH_ORDER.findIndex(m => m === filters.mes.toLowerCase());
+      return d.fechaNovedad!.getMonth() === monthIndex;
     });
 
-    const motivosMap = new Map<string, number>();
+    const motivesMap = new Map<string, number>();
     const areasMap = new Map<string, number>();
 
     bajasAnuales.forEach(d => {
-      const mot = d.motivoNovedad || 'Sin especificar';
-      motivosMap.set(mot, (motivosMap.get(mot) || 0) + 1);
-
-      const ar = d.area || 'Sin especificar';
-      areasMap.set(ar, (areasMap.get(ar) || 0) + 1);
+      const motivo = d.motivoNovedad || 'Sin especificar';
+      const area = d.area || 'Sin especificar';
+      motivesMap.set(motivo, (motivesMap.get(motivo) || 0) + 1);
+      areasMap.set(area, (areasMap.get(area) || 0) + 1);
     });
 
-    const motivesArr = Array.from(motivosMap.entries())
+    const motivesArr = Array.from(motivesMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
@@ -158,51 +191,55 @@ export function RotacionDashboard() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // List of names for the sidebar
-    let namesData = filtered;
-    if (chartFilter) {
-      if (chartFilter.type === 'mes') {
-        const mStr = chartFilter.value.toLowerCase();
-        const m = monthOrder.findIndex(mo => mo.substring(0,3) === mStr);
-        namesData = namesData.filter(d => 
-          d.fechaNovedad && 
-          d.fechaNovedad.getFullYear() === year && 
-          d.fechaNovedad.getMonth() === m
-        );
-      } else if (chartFilter.type === 'motivo') {
-        namesData = bajasAnuales.filter(d => (d.motivoNovedad || 'Sin especificar') === chartFilter.value);
-      } else if (chartFilter.type === 'area') {
-        namesData = bajasAnuales.filter(d => (d.area || 'Sin especificar') === chartFilter.value);
-      }
+    let peopleData = bajasAnuales;
+    if (chartFilter?.type === 'mes') {
+      const monthIndex = MONTH_ORDER.findIndex(m => m.substring(0, 3).toUpperCase() === chartFilter.value);
+      peopleData = filtered.filter(d =>
+        d.fechaNovedad &&
+        d.fechaNovedad.getFullYear() === year &&
+        d.fechaNovedad.getMonth() === monthIndex
+      );
+    }
+    if (chartFilter?.type === 'motivo') {
+      peopleData = bajasAnuales.filter(d => (d.motivoNovedad || 'Sin especificar') === chartFilter.value);
+    }
+    if (chartFilter?.type === 'area') {
+      peopleData = bajasAnuales.filter(d => (d.area || 'Sin especificar') === chartFilter.value);
     }
 
-    const filteredNames = Array.from(new Set(namesData.map(d => d.nombre))).sort();
+    const uniqueNames = Array.from(new Set(peopleData.map(d => d.nombre).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const monthlyKpi =
+      chartFilter?.type === 'mes'
+        ? monthsData.find(item => item.nombreMes === chartFilter.value)
+        : monthsData[monthsData.length - 1];
 
-    return { 
-      filteredData: filteredNames,
+    return {
+      filteredPeople: uniqueNames,
       monthlyStats: monthsData,
       motives: motivesArr,
       areas: areasArr,
       kpis: {
-        acumulada: rotacionAcumuladaAnual
+        acumulada: rotacionAcumuladaAnual,
+        mensual: monthlyKpi?.rotacionMensual || 0,
+        mensualLabel: monthlyKpi?.nombreMes || '-'
       }
     };
-  }, [data, filters, chartFilter]);
+  }, [chartFilter, data, filters]);
 
   const handleDownload = (id: string, name: string) => {
     const node = document.getElementById(id);
-    if (node) {
-      toPng(node, { backgroundColor: '#ffffff' })
-        .then((dataUrl) => {
-          const link = document.createElement('a');
-          link.download = `${name}.png`;
-          link.href = dataUrl;
-          link.click();
-        })
-        .catch((err) => {
-          console.error('Error downloading chart', err);
-        });
-    }
+    if (!node) return;
+
+    toPng(node, { backgroundColor: '#ffffff' })
+      .then(dataUrl => {
+        const link = document.createElement('a');
+        link.download = `${name}.png`;
+        link.href = dataUrl;
+        link.click();
+      })
+      .catch(err => {
+        console.error('Error downloading chart', err);
+      });
   };
 
   if (loading) {
@@ -225,12 +262,8 @@ export function RotacionDashboard() {
     );
   }
 
-  const COLORS = ['#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#f43f5e'];
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      
-      {/* Header & Filters */}
       <section className="glass-card !p-5 overflow-visible">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -255,9 +288,17 @@ export function RotacionDashboard() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: KPI & Names */}
         <div className="lg:col-span-3 flex flex-col gap-6">
+          <div className="glass-card p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group border-l-4 border-l-sky-500">
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
+              <Users size={100} />
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 relative z-10">
+              Rotación Mensual ({kpis.mensualLabel})
+            </p>
+            <p className="text-5xl font-black text-slate-900 relative z-10">{kpis.mensual.toFixed(2)} %</p>
+          </div>
+
           <div className="glass-card p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group border-l-4 border-l-rose-500">
             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
               <TrendingDown size={100} />
@@ -265,10 +306,15 @@ export function RotacionDashboard() {
             <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 relative z-10">Rotación Acumulada Año (%)</p>
             <p className="text-5xl font-black text-slate-900 relative z-10">{kpis.acumulada.toFixed(2)} %</p>
           </div>
-          
+
           <div className="glass-card !p-0 flex flex-col overflow-hidden h-[450px]">
-            <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700">Nombre y Apellido</h3>
+            <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex justify-between items-center gap-3">
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-700">Personas</h3>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {chartFilter ? `Filtro activo: ${chartFilter.value}` : 'Bajas del período seleccionado'}
+                </p>
+              </div>
               {chartFilter && (
                 <button onClick={() => setChartFilter(null)} className="text-[9px] font-bold bg-rose-100 text-rose-600 px-2 py-1 rounded-md hover:bg-rose-200 transition-colors uppercase tracking-widest">
                   Quitar Filtro
@@ -276,22 +322,19 @@ export function RotacionDashboard() {
               )}
             </div>
             <div className="overflow-y-auto flex-1 p-2">
-              {filteredData.map((name, i) => (
-                <div key={i} className={`px-3 py-2 text-xs font-medium rounded-lg ${i % 2 === 0 ? 'bg-transparent' : 'bg-slate-50'}`}>
+              {filteredPeople.map((name, index) => (
+                <div key={`${name}-${index}`} className={`px-3 py-2 text-xs font-medium rounded-lg ${index % 2 === 0 ? 'bg-transparent' : 'bg-slate-50'}`}>
                   {name}
                 </div>
               ))}
               <div className="px-3 py-2 text-xs font-black border-t border-slate-200 mt-2">
-                Total: {filteredData.length}
+                Total: {filteredPeople.length}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Charts */}
         <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Chart 1: Rotacion Total Mensual */}
           <div className="glass-card p-5 h-[300px] flex flex-col relative group" id="chart-rot-mensual">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">% Rotación Total Mensual</h3>
@@ -301,13 +344,23 @@ export function RotacionDashboard() {
             </div>
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyStats} margin={{ top: 20, right: 10, left: -20, bottom: 0 }} onClick={(e) => { if (e && e.activePayload) setChartFilter({ type: 'mes', value: e.activePayload[0].payload.nombreMes }); }}>
+                <LineChart
+                  data={monthlyStats}
+                  margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
+                  onClick={e => {
+                    const payload = e?.activePayload?.[0]?.payload;
+                    if (payload?.nombreMes) {
+                      handleChartFilter({ type: 'mes', value: payload.nombreMes });
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="nombreMes" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} interval={0} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(val) => `${val}%`} />
-                  <Tooltip 
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={val => `${val}%`} />
+                  <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(val: number) => [`${val.toFixed(2)}%`, 'Rotación']}
+                    labelFormatter={label => `Mes: ${label}`}
                   />
                   <Line type="monotone" dataKey="rotacionMensual" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} className="cursor-pointer">
                     <LabelList dataKey="rotacionMensual" position="top" formatter={(val: number) => `${val.toFixed(1)}%`} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
@@ -317,7 +370,6 @@ export function RotacionDashboard() {
             </div>
           </div>
 
-          {/* Chart 2: Rotacion Interanual */}
           <div className="glass-card p-5 h-[300px] flex flex-col relative group" id="chart-rot-interanual">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Rotación Interanual</h3>
@@ -330,14 +382,14 @@ export function RotacionDashboard() {
                 <BarChart data={monthlyStats} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="nombreMes" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} interval={0} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(val) => `${val}%`} />
-                  <Tooltip 
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={val => `${val}%`} />
+                  <Tooltip
                     cursor={{ fill: '#f8fafc' }}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(val: number) => [`${val.toFixed(2)}%`, 'Rotación Interanual']}
                   />
-                  <Bar dataKey="rotacionInteranual" fill="#3b82f6" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data) => setChartFilter({ type: 'mes', value: data.nombreMes })}>
-                    {monthlyStats.map((entry, index) => (
+                  <Bar dataKey="rotacionInteranual" fill="#3b82f6" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                    {monthlyStats.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                     <LabelList dataKey="rotacionInteranual" position="top" formatter={(val: number) => `${val.toFixed(1)}%`} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
@@ -347,7 +399,6 @@ export function RotacionDashboard() {
             </div>
           </div>
 
-          {/* Chart 3: Voluntaria y Temprana */}
           <div className="glass-card p-5 h-[300px] flex flex-col relative group" id="chart-rot-voluntaria">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">% Rotación Voluntaria y Temprana</h3>
@@ -360,18 +411,18 @@ export function RotacionDashboard() {
                 <BarChart data={monthlyStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="nombreMes" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} interval={0} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(val) => `${val}%`} />
-                  <Tooltip 
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={val => `${val}%`} />
+                  <Tooltip
                     cursor={{ fill: '#f8fafc' }}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(val: number) => [`${val.toFixed(2)}%`]}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} iconType="circle" />
-                  <Bar dataKey="rotacionVoluntaria" name="Voluntaria Mensual" fill="#0ea5e9" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data) => setChartFilter({ type: 'mes', value: data.nombreMes })}>
-                    <LabelList dataKey="rotacionVoluntaria" position="top" formatter={(val: number) => val > 0 ? `${val.toFixed(1)}%` : ''} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
+                  <Bar dataKey="rotacionVoluntaria" name="Voluntaria Mensual" fill="#0ea5e9" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                    <LabelList dataKey="rotacionVoluntaria" position="top" formatter={(val: number) => (val > 0 ? `${val.toFixed(1)}%` : '')} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
                   </Bar>
-                  <Bar dataKey="rotacionVolTemprana" name="Voluntaria Temprana" fill="#1e3a8a" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(data) => setChartFilter({ type: 'mes', value: data.nombreMes })}>
-                    <LabelList dataKey="rotacionVolTemprana" position="top" formatter={(val: number) => val > 0 ? `${val.toFixed(1)}%` : ''} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
+                  <Bar dataKey="rotacionVolTemprana" name="Voluntaria Temprana" fill="#1e3a8a" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                    <LabelList dataKey="rotacionVolTemprana" position="top" formatter={(val: number) => (val > 0 ? `${val.toFixed(1)}%` : '')} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -379,7 +430,6 @@ export function RotacionDashboard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 h-[300px]">
-            {/* Chart 4: Bajas por motivo */}
             <div className="glass-card p-5 flex flex-col relative group" id="chart-bajas-motivo">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Cantidad de Bajas por Motivo</h3>
@@ -393,13 +443,10 @@ export function RotacionDashboard() {
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} width={80} />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={16} className="cursor-pointer" onClick={(data) => setChartFilter({ type: 'motivo', value: data.name })}>
-                       {motives.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={16} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'motivo', value: entry.name })}>
+                      {motives.map((_, index) => (
+                        <Cell key={`motivo-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                       <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 'bold' }} />
                     </Bar>
@@ -408,7 +455,6 @@ export function RotacionDashboard() {
               </div>
             </div>
 
-            {/* Chart 5: Bajas por área */}
             <div className="glass-card p-5 flex flex-col relative group" id="chart-bajas-area">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-700">Bajas por Área</h3>
@@ -427,38 +473,34 @@ export function RotacionDashboard() {
                       outerRadius={60}
                       paddingAngle={2}
                       dataKey="value"
-                      label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
+                      label={({ percent }) => (percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : '')}
                       labelLine={false}
                       className="cursor-pointer focus:outline-none"
-                      onClick={(data) => setChartFilter({ type: 'area', value: data.name })}
+                      onClick={entry => handleChartFilter({ type: 'area', value: entry.name })}
                     >
-                      {areas.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      {areas.map((_, index) => (
+                        <Cell key={`area-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                     <Legend wrapperStyle={{ fontSize: '10px' }} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
   );
 }
 
-// Subcomponente
-function FilterSelect({ label, value, onChange, options }: { label: string, value: string, onChange: (v: string) => void, options: string[] }) {
+function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
     <div className="flex flex-col gap-1 min-w-[120px]">
       <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1">{label}</label>
-      <select 
-        value={value} 
+      <select
+        value={value}
         onChange={e => onChange(e.target.value)}
         className="w-full text-xs font-medium bg-white/60 border border-slate-200/60 rounded-xl px-3 py-2 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all shadow-sm appearance-none cursor-pointer hover:bg-white"
         style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%2364748b\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}

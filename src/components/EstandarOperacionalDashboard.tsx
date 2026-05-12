@@ -130,7 +130,7 @@ export function EstandarOperacionalDashboard({ data }: Props) {
     return Object.values(grouped)
       .map(d => ({
         ...d,
-        necesario: Number(d.necesario.toFixed(1)),
+        necesario: Math.round(d.necesario),
         actual: d.actual
       }))
       .filter(d => d.necesario > 0 || d.actual > 0)
