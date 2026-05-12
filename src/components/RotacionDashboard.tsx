@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Users,
-  TrendingDown,
   Filter,
   Download
 } from 'lucide-react';
@@ -33,6 +32,17 @@ type ChartFilter =
   | { type: 'area'; value: string }
   | null;
 
+type MonthlyStat = {
+  mes: string;
+  nombreMes: string;
+  nombreMesCompleto: string;
+  rotacionMensual: number;
+  rotacionInteranual: number;
+  rotacionVoluntaria: number;
+  rotacionVolTemprana: number;
+  bajas: number;
+};
+
 export function RotacionDashboard() {
   const { data, loading, error } = useRotacionData();
 
@@ -56,6 +66,11 @@ export function RotacionDashboard() {
     ));
   };
 
+  const handleMonthFilter = (monthLabel?: string) => {
+    if (!monthLabel) return;
+    handleChartFilter({ type: 'mes', value: monthLabel });
+  };
+
   const filterOptions = useMemo(() => {
     if (!data.length) return { localidades: [], anos: [], meses: [] };
 
@@ -76,16 +91,7 @@ export function RotacionDashboard() {
     if (!data.length) {
       return {
         filteredPeople: [] as string[],
-        monthlyStats: [] as Array<{
-          mes: string;
-          nombreMes: string;
-          nombreMesCompleto: string;
-          rotacionMensual: number;
-          rotacionInteranual: number;
-          rotacionVoluntaria: number;
-          rotacionVolTemprana: number;
-          bajas: number;
-        }>,
+        monthlyStats: [] as MonthlyStat[],
         motives: [] as Array<{ name: string; value: number }>,
         areas: [] as Array<{ name: string; value: number }>,
         kpis: { acumulada: 0, mensual: 0, mensualLabel: '-' }
@@ -98,16 +104,7 @@ export function RotacionDashboard() {
     }
 
     const year = parseInt(filters.ano, 10) || new Date().getFullYear();
-    const monthsData: Array<{
-      mes: string;
-      nombreMes: string;
-      nombreMesCompleto: string;
-      rotacionMensual: number;
-      rotacionInteranual: number;
-      rotacionVoluntaria: number;
-      rotacionVolTemprana: number;
-      bajas: number;
-    }> = [];
+    const monthsData: MonthlyStat[] = [];
 
     let bajasTotalesAnuales = 0;
     let dotacionPromedioTotal = 0;
@@ -208,10 +205,9 @@ export function RotacionDashboard() {
     }
 
     const uniqueNames = Array.from(new Set(peopleData.map(d => d.nombre).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-    const monthlyKpi =
-      chartFilter?.type === 'mes'
-        ? monthsData.find(item => item.nombreMes === chartFilter.value)
-        : monthsData[monthsData.length - 1];
+    const monthlyKpi = chartFilter?.type === 'mes'
+      ? monthsData.find(item => item.nombreMes === chartFilter.value)
+      : monthsData[monthsData.length - 1];
 
     return {
       filteredPeople: uniqueNames,
@@ -289,22 +285,23 @@ export function RotacionDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-3 flex flex-col gap-6">
-          <div className="glass-card p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group border-l-4 border-l-sky-500">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
+          <div className="glass-card p-6 relative overflow-hidden border-l-4 border-l-sky-500">
+            <div className="absolute -right-4 -bottom-4 opacity-5">
               <Users size={100} />
             </div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 relative z-10">
-              Rotación Mensual ({kpis.mensualLabel})
-            </p>
-            <p className="text-5xl font-black text-slate-900 relative z-10">{kpis.mensual.toFixed(2)} %</p>
-          </div>
-
-          <div className="glass-card p-6 flex flex-col justify-center items-center text-center relative overflow-hidden group border-l-4 border-l-rose-500">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
-              <TrendingDown size={100} />
+            <div className="relative z-10 space-y-5">
+              <div className="text-center">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                  Rotación Mensual ({kpis.mensualLabel})
+                </p>
+                <p className="text-5xl font-black text-slate-900">{kpis.mensual.toFixed(2)} %</p>
+              </div>
+              <div className="h-px bg-slate-200"></div>
+              <div className="text-center">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Rotación Acumulada Año (%)</p>
+                <p className="text-5xl font-black text-slate-900">{kpis.acumulada.toFixed(2)} %</p>
+              </div>
             </div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 relative z-10">Rotación Acumulada Año (%)</p>
-            <p className="text-5xl font-black text-slate-900 relative z-10">{kpis.acumulada.toFixed(2)} %</p>
           </div>
 
           <div className="glass-card !p-0 flex flex-col overflow-hidden h-[450px]">
@@ -347,12 +344,7 @@ export function RotacionDashboard() {
                 <LineChart
                   data={monthlyStats}
                   margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
-                  onClick={e => {
-                    const payload = e?.activePayload?.[0]?.payload;
-                    if (payload?.nombreMes) {
-                      handleChartFilter({ type: 'mes', value: payload.nombreMes });
-                    }
-                  }}
+                  onClick={e => handleMonthFilter(e?.activePayload?.[0]?.payload?.nombreMes)}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="nombreMes" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} interval={0} />
@@ -362,7 +354,16 @@ export function RotacionDashboard() {
                     formatter={(val: number) => [`${val.toFixed(2)}%`, 'Rotación']}
                     labelFormatter={label => `Mes: ${label}`}
                   />
-                  <Line type="monotone" dataKey="rotacionMensual" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} className="cursor-pointer">
+                  <Line
+                    type="monotone"
+                    dataKey="rotacionMensual"
+                    stroke="#0ea5e9"
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2 }}
+                    activeDot={{ r: 6 }}
+                    className="cursor-pointer"
+                    onClick={(payload: MonthlyStat) => handleMonthFilter(payload?.nombreMes)}
+                  >
                     <LabelList dataKey="rotacionMensual" position="top" formatter={(val: number) => `${val.toFixed(1)}%`} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
                   </Line>
                 </LineChart>
@@ -388,7 +389,7 @@ export function RotacionDashboard() {
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(val: number) => [`${val.toFixed(2)}%`, 'Rotación Interanual']}
                   />
-                  <Bar dataKey="rotacionInteranual" fill="#3b82f6" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                  <Bar dataKey="rotacionInteranual" fill="#3b82f6" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(entry: MonthlyStat) => handleMonthFilter(entry?.nombreMes)}>
                     {monthlyStats.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -418,10 +419,10 @@ export function RotacionDashboard() {
                     formatter={(val: number) => [`${val.toFixed(2)}%`]}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} iconType="circle" />
-                  <Bar dataKey="rotacionVoluntaria" name="Voluntaria Mensual" fill="#0ea5e9" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                  <Bar dataKey="rotacionVoluntaria" name="Voluntaria Mensual" fill="#0ea5e9" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(entry: MonthlyStat) => handleMonthFilter(entry?.nombreMes)}>
                     <LabelList dataKey="rotacionVoluntaria" position="top" formatter={(val: number) => (val > 0 ? `${val.toFixed(1)}%` : '')} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
                   </Bar>
-                  <Bar dataKey="rotacionVolTemprana" name="Voluntaria Temprana" fill="#1e3a8a" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'mes', value: entry.nombreMes })}>
+                  <Bar dataKey="rotacionVolTemprana" name="Voluntaria Temprana" fill="#1e3a8a" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(entry: MonthlyStat) => handleMonthFilter(entry?.nombreMes)}>
                     <LabelList dataKey="rotacionVolTemprana" position="top" formatter={(val: number) => (val > 0 ? `${val.toFixed(1)}%` : '')} style={{ fontSize: '9px', fill: '#64748b', fontWeight: 600 }} />
                   </Bar>
                 </BarChart>
@@ -444,7 +445,7 @@ export function RotacionDashboard() {
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} width={80} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={16} className="cursor-pointer" onClick={entry => handleChartFilter({ type: 'motivo', value: entry.name })}>
+                    <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={16} className="cursor-pointer" onClick={(entry: { name: string }) => handleChartFilter({ type: 'motivo', value: entry.name })}>
                       {motives.map((_, index) => (
                         <Cell key={`motivo-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
@@ -476,7 +477,7 @@ export function RotacionDashboard() {
                       label={({ percent }) => (percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : '')}
                       labelLine={false}
                       className="cursor-pointer focus:outline-none"
-                      onClick={entry => handleChartFilter({ type: 'area', value: entry.name })}
+                      onClick={(entry: { name: string }) => handleChartFilter({ type: 'area', value: entry.name })}
                     >
                       {areas.map((_, index) => (
                         <Cell key={`area-${index}`} fill={COLORS[index % COLORS.length]} />

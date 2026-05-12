@@ -260,7 +260,8 @@ export function EstandarOperacionalDashboard({ data }: Props) {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} />
                 <Tooltip 
                   cursor={{ fill: '#f8fafc', opacity: 0.4 }} 
-                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }} 
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
+                  formatter={(value: number, name: string) => [Math.round(value), name]}
                 />
                 <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 700 }} />
                 <Bar dataKey="necesario" name="Dotación Necesaria" fill="#00B0F0" radius={[6, 6, 0, 0]} barSize={24}>
