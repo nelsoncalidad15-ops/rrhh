@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -26,6 +26,7 @@ import {
   Cell,
   Legend,
   Line,
+  LabelList,
   LineChart,
   Pie,
   PieChart,
@@ -70,6 +71,22 @@ type Filters = {
 };
 
 type ChartDatum = { name: string; value: number };
+const FILTER_LABELS: Partial<Record<keyof Filters, string>> = {
+  month: 'Corte',
+  area: 'Área',
+  jerarquia: 'Jerarquía',
+  sexo: 'Sexo',
+  generacion: 'Generación',
+  antiguedadRango: 'Antigüedad',
+  edadRango: 'Edad',
+  categoria: 'Categoría',
+  modalidadContrato: 'Modalidad',
+  jefe: 'Jefe',
+  unidadNegocio: 'Unidad de negocio',
+  motivoEgreso: 'Motivo de baja',
+  dataIssue: 'Calidad de datos'
+};
+
 
 const initialFilters = (): Filters => ({
   year: String(new Date().getFullYear()),
@@ -190,6 +207,15 @@ const countBy = (records: NominaRecord[], getName: (record: NominaRecord) => str
 };
 
 const formatNumber = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const formatFte = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+const formatChartValue = (value: unknown) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? formatNumber.format(numericValue) : '';
+};
+const formatChartFte = (value: unknown) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? formatFte.format(numericValue) : '';
+};
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
 const formatShortDate = (date: Date) =>
@@ -219,14 +245,27 @@ const unitLabel = (key: string) => BUSINESS_UNITS.find((unit) => unit.key === ke
 export function NominaDashboard() {
   const { data, loading, error, updatedAt } = useNominaData();
   const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [chartFilterNotice, setChartFilterNotice] = useState<string | null>(null);
+  const detailTableRef = useRef<HTMLElement>(null);
 
   const updateFilter = (key: keyof Filters, value: string) => {
+    setChartFilterNotice(null);
     setFilters((current) => ({ ...current, [key]: value }));
   };
 
-  const toggleFilter = (key: keyof Filters, value: string) => {
+  const applyChartFilter = (key: keyof Filters, value: string, displayValue = value) => {
     if (!value) return;
+    const isApplying = filters[key] !== value;
     setFilters((current) => ({ ...current, [key]: current[key] === value ? ALL : value }));
+    setChartFilterNotice(isApplying ? (FILTER_LABELS[key] || 'Filtro') + ': ' + displayValue : null);
+
+    if (isApplying) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          detailTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
   };
 
   const clearFilter = (key: keyof Filters) => {
@@ -371,6 +410,9 @@ export function NominaDashboard() {
       ]
     };
   }, [baseRecords, filters.month, periodStart, referenceDate, selectedYear]);
+  const isExitDetail = filters.motivoEgreso !== ALL;
+  const detailRecords = isExitDetail ? dashboard.exits : dashboard.active;
+
 
   const activeFilterChips = useMemo(() => {
     const labels: Array<{ key: keyof Filters; label: string; value: string }> = [
@@ -384,7 +426,7 @@ export function NominaDashboard() {
       { key: 'jefe', label: 'Jefe', value: filters.jefe },
       { key: 'sexo', label: 'Sexo', value: filters.sexo },
       { key: 'modalidadContrato', label: 'Modalidad', value: filters.modalidadContrato },
-      { key: 'generacion', label: 'Generaci?n', value: filters.generacion },
+      { key: 'generacion', label: 'Generación', value: filters.generacion },
       { key: 'motivoEgreso', label: 'Motivo baja', value: filters.motivoEgreso },
       { key: 'convenio', label: 'Convenio', value: filters.convenio },
       { key: 'categoria', label: 'Categoría', value: filters.categoria },
@@ -448,7 +490,7 @@ export function NominaDashboard() {
           <FilterSelect label="Categoría" value={filters.categoria} options={options.categorias} onChange={(value) => updateFilter('categoria', value)} />
           <FilterSelect label="Estado" value={filters.estado} options={options.estados} onChange={(value) => updateFilter('estado', value)} />
           <FilterSelect label="Cobertura" value={filters.cobertura} options={options.coberturas} onChange={(value) => updateFilter('cobertura', value)} />
-          <FilterSelect label="Generaci?n" value={filters.generacion} options={options.generaciones} onChange={(value) => updateFilter('generacion', value)} />
+          <FilterSelect label="Generación" value={filters.generacion} options={options.generaciones} onChange={(value) => updateFilter('generacion', value)} />
           <FilterSelect label="Motivo baja" value={filters.motivoEgreso} options={options.motivosEgreso} onChange={(value) => updateFilter('motivoEgreso', value)} />
           <FilterSelect label="Unidad" value={filters.unidadNegocio} options={BUSINESS_UNITS.map((unit) => unit.key)} formatOption={unitLabel} onChange={(value) => updateFilter('unidadNegocio', value)} />
           <label className="col-span-2 flex min-w-0 flex-col gap-1 xl:col-span-2">
@@ -476,7 +518,10 @@ export function NominaDashboard() {
             </button>
           )) : <span className="text-[11px] text-slate-400">Sin segmentaciones adicionales</span>}
           <button
-            onClick={() => setFilters(initialFilters())}
+            onClick={() => {
+              setFilters(initialFilters());
+              setChartFilterNotice(null);
+            }}
             className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
           >
             <RotateCcw size={13} /> Limpiar todo
@@ -494,6 +539,10 @@ export function NominaDashboard() {
         <KpiCard label="Antigüedad media" value={`${(dashboard.averageTenure / 12).toFixed(1)} a`} caption="Personal activo con fecha de ingreso" icon={<Table2 size={18} />} accent="violet" />
       </section>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-[11px] text-indigo-800">
+        <Filter size={14} className="shrink-0 text-indigo-600" />
+        <p><strong>Gráficos interactivos:</strong> hacé clic en una barra, punto o segmento para ver las personas abajo. Repetí el clic para quitar el filtro.</p>
+      </div>
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <ChartCard id="nomina-evolucion" title="Evolución de dotación" subtitle="Estimación por fechas de ingreso y egreso · clic en un mes para cortar la vista" className="xl:col-span-6">
           <ChartOrEmpty hasData={dashboard.historical.some((item) => item.value !== null)}>
@@ -503,14 +552,16 @@ export function NominaDashboard() {
                 margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
                 onClick={(event) => {
                   const item = getChartPayload<{ fullMonth?: string }>(event);
-                  if (item?.fullMonth) toggleFilter('month', item.fullMonth);
+                  if (item?.fullMonth) applyChartFilter('month', item.fullMonth);
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
                 <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                 <Tooltip labelFormatter={(label) => `Mes: ${label}`} formatter={(value: number) => [value, 'Dotación']} />
-                <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} className="cursor-pointer" connectNulls={false} />
+                <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} className="cursor-pointer" connectNulls={false}>
+                  <LabelList dataKey="value" position="top" offset={8} formatter={formatChartValue} fill="#4f46e5" fontSize={10} fontWeight={700} />
+                </Line>
               </LineChart>
             </ResponsiveContainer>
           </ChartOrEmpty>
@@ -520,7 +571,7 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.areas}
             activeValue={filters.area}
-            onSelect={(value) => toggleFilter('area', value)}
+            onSelect={(value) => applyChartFilter('area', value)}
             color="#2563eb"
           />
         </ChartCard>
@@ -529,20 +580,20 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.hierarchy}
             activeValue={filters.jerarquia}
-            onSelect={(value) => toggleFilter('jerarquia', value)}
+            onSelect={(value) => applyChartFilter('jerarquia', value)}
             color="#7c3aed"
           />
         </ChartCard>
 
         <ChartCard id="nomina-sexo" title="Distribución por sexo" subtitle="Clic para segmentar toda la vista" className="xl:col-span-3">
-          <PieDistribution data={dashboard.genders} activeValue={filters.sexo} onSelect={(value) => toggleFilter('sexo', value)} />
+          <PieDistribution data={dashboard.genders} activeValue={filters.sexo} onSelect={(value) => applyChartFilter('sexo', value)} />
         </ChartCard>
 
         <ChartCard id="nomina-generacion" title="Generaciones" subtitle="Campo informado en la nómina" className="xl:col-span-3">
           <BarDistribution
             data={dashboard.generations}
             activeValue={filters.generacion}
-            onSelect={(value) => toggleFilter('generacion', value)}
+            onSelect={(value) => applyChartFilter('generacion', value)}
             color="#0ea5e9"
             interactive
           />
@@ -552,7 +603,7 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.tenure}
             activeValue={filters.antiguedadRango}
-            onSelect={(value) => toggleFilter('antiguedadRango', value)}
+            onSelect={(value) => applyChartFilter('antiguedadRango', value)}
             color="#14b8a6"
           />
         </ChartCard>
@@ -561,7 +612,7 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.ages}
             activeValue={filters.edadRango}
-            onSelect={(value) => toggleFilter('edadRango', value)}
+            onSelect={(value) => applyChartFilter('edadRango', value)}
             color="#f97316"
           />
         </ChartCard>
@@ -570,20 +621,20 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.categories}
             activeValue={filters.categoria}
-            onSelect={(value) => toggleFilter('categoria', value)}
+            onSelect={(value) => applyChartFilter('categoria', value)}
             color="#6366f1"
           />
         </ChartCard>
 
         <ChartCard id="nomina-modalidad" title="Modalidad de contrato" subtitle="DC, FC y otros formatos informados" className="xl:col-span-4">
-          <PieDistribution data={dashboard.modalities} activeValue={filters.modalidadContrato} onSelect={(value) => toggleFilter('modalidadContrato', value)} />
+          <PieDistribution data={dashboard.modalities} activeValue={filters.modalidadContrato} onSelect={(value) => applyChartFilter('modalidadContrato', value)} />
         </ChartCard>
 
         <ChartCard id="nomina-jefes" title="Span de control" subtitle="Personas activas por jefe informado" className="xl:col-span-4">
           <BarDistribution
             data={dashboard.leaders}
             activeValue={filters.jefe}
-            onSelect={(value) => toggleFilter('jefe', value)}
+            onSelect={(value) => applyChartFilter('jefe', value)}
             color="#db2777"
           />
         </ChartCard>
@@ -594,18 +645,15 @@ export function NominaDashboard() {
               <BarChart
                 data={dashboard.businessFte}
                 layout="vertical"
-                margin={{ top: 4, right: 32, left: 68, bottom: 0 }}
-                onClick={(event) => {
-                  const item = getChartPayload<{ key?: string }>(event);
-                  if (item?.key) toggleFilter('unidadNegocio', item.key);
-                }}
+                margin={{ top: 4, right: 56, left: 68, bottom: 0 }}
               >
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={86} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#475569' }} />
                 <Tooltip formatter={(value: number) => [value.toFixed(2), 'FTE']} />
                 <Bar dataKey="value" radius={[0, 5, 5, 0]} className="cursor-pointer">
+                  <LabelList dataKey="value" position="right" offset={8} formatter={formatChartFte} fill="#475569" fontSize={10} fontWeight={700} />
                   {dashboard.businessFte.map((item, index) => (
-                    <Cell key={item.key} fill={filters.unidadNegocio === item.key ? '#001e50' : COLORS[index % COLORS.length]} />
+                    <Cell key={item.key} fill={filters.unidadNegocio === item.key ? '#001e50' : COLORS[index % COLORS.length]} onClick={() => applyChartFilter('unidadNegocio', item.key, item.name)} />
                   ))}
                 </Bar>
               </BarChart>
@@ -617,7 +665,7 @@ export function NominaDashboard() {
           <BarDistribution
             data={dashboard.exitMotives}
             activeValue={filters.motivoEgreso}
-            onSelect={(value) => toggleFilter('motivoEgreso', value)}
+            onSelect={(value) => applyChartFilter('motivoEgreso', value)}
             color="#f43f5e"
             interactive
           />
@@ -635,7 +683,7 @@ export function NominaDashboard() {
             {dashboard.quality.map((item) => (
               <button
                 key={item.name}
-                onClick={() => toggleFilter('dataIssue', item.name)}
+                onClick={() => applyChartFilter('dataIssue', item.name)}
                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] transition ${filters.dataIssue === item.name ? 'bg-amber-100 text-amber-800' : 'text-slate-600 hover:bg-slate-50'}`}
               >
                 <span>{item.name}</span>
@@ -647,11 +695,20 @@ export function NominaDashboard() {
         </section>
       </section>
 
-      <section className="glass-card !p-0 overflow-hidden">
+      <section ref={detailTableRef} id="nomina-detalle" className="glass-card !p-0 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">Detalle de dotación activa</h3>
-            <p className="mt-1 text-[11px] text-slate-400">{dashboard.active.length} personas al {formatShortDate(referenceDate)} · la tabla respeta exactamente los filtros y clics aplicados.</p>
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-700">{isExitDetail ? 'Detalle de bajas' : 'Detalle de dotación activa'}</h3>
+            <p className="mt-1 text-[11px] text-slate-400">
+              {isExitDetail
+                ? detailRecords.length + ' bajas dentro del período seleccionado · la tabla muestra quiénes son.'
+                : detailRecords.length + ' personas al ' + formatShortDate(referenceDate) + ' · la tabla respeta exactamente los filtros y clics aplicados.'}
+            </p>
+            {chartFilterNotice && (
+              <p role="status" className="mt-2 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[10px] font-semibold text-indigo-700">
+                Filtro aplicado desde el gráfico: <strong>{chartFilterNotice}</strong> · {detailRecords.length} {isExitDetail ? 'bajas' : 'personas'} en la lista.
+              </p>
+            )}
           </div>
           <span className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600"><Table2 size={13} /> Sin datos de contacto</span>
         </div>
@@ -665,12 +722,13 @@ export function NominaDashboard() {
                 <th className="px-3 py-3">Puesto</th>
                 <th className="px-3 py-3">Jerarquía</th>
                 <th className="px-3 py-3">Jefe</th>
-                <th className="px-3 py-3 text-right">Antigüedad</th>
+                {isExitDetail && <th className="px-3 py-3">Motivo de baja</th>}
+                <th className="px-3 py-3 text-right">{isExitDetail ? 'Fecha de baja' : 'Antigüedad'}</th>
                 <th className="px-5 py-3 text-right">FTE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {dashboard.active.map((record) => {
+              {detailRecords.map((record) => {
                 const tenure = getTenureMonths(record, referenceDate);
                 return (
                   <tr key={record.id} className="text-slate-600 transition hover:bg-indigo-50/40">
@@ -683,13 +741,14 @@ export function NominaDashboard() {
                     <td className="px-3 py-3">{dimensionValue(record.puesto)}</td>
                     <td className="px-3 py-3">{dimensionValue(record.jerarquia)}</td>
                     <td className="px-3 py-3">{dimensionValue(record.jefe)}</td>
-                    <td className="px-3 py-3 text-right">{tenure === null ? MISSING : `${(tenure / 12).toFixed(1)} a`}</td>
+                    {isExitDetail && <td className="px-3 py-3">{dimensionValue(record.motivoEgreso)}</td>}
+                    <td className="px-3 py-3 text-right">{isExitDetail ? (record.fechaEgreso ? formatShortDate(record.fechaEgreso) : MISSING) : (tenure === null ? MISSING : (tenure / 12).toFixed(1) + ' a')}</td>
                     <td className="px-5 py-3 text-right font-black text-indigo-700">{allocationTotal(record).toFixed(2)}</td>
                   </tr>
                 );
               })}
-              {!dashboard.active.length && (
-                <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-slate-400">No hay personas activas que cumplan los filtros seleccionados.</td></tr>
+              {!detailRecords.length && (
+                <tr><td colSpan={isExitDetail ? 9 : 8} className="px-5 py-12 text-center text-sm text-slate-400">{isExitDetail ? 'No hay bajas que cumplan los filtros seleccionados.' : 'No hay personas activas que cumplan los filtros seleccionados.'}</td></tr>
               )}
             </tbody>
           </table>
@@ -778,18 +837,14 @@ function BarDistribution({ data, activeValue, onSelect, color, interactive = tru
         <BarChart
           data={data}
           layout="vertical"
-          margin={{ top: 2, right: 24, left: 56, bottom: 0 }}
-          onClick={(event) => {
-            if (!interactive) return;
-            const item = getChartPayload<ChartDatum>(event);
-            if (item?.name) onSelect(item.name);
-          }}
+          margin={{ top: 2, right: 48, left: 56, bottom: 0 }}
         >
           <XAxis type="number" hide />
           <YAxis dataKey="name" type="category" width={86} axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#475569' }} />
           <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value: number) => [value, 'Personas']} />
           <Bar dataKey="value" fill={color} radius={[0, 5, 5, 0]} className={interactive ? 'cursor-pointer' : ''}>
-            {data.map((item, index) => <Cell key={item.name} fill={activeValue === item.name ? '#001e50' : COLORS[index % COLORS.length] || color} />)}
+            <LabelList dataKey="value" position="right" offset={8} formatter={formatChartValue} fill="#475569" fontSize={10} fontWeight={700} />
+            {data.map((item, index) => <Cell key={item.name} fill={activeValue === item.name ? '#001e50' : COLORS[index % COLORS.length] || color} onClick={() => { if (interactive) onSelect(item.name); }} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -811,6 +866,8 @@ function PieDistribution({ data, activeValue, onSelect }: { data: ChartDatum[]; 
             innerRadius={38}
             outerRadius={66}
             paddingAngle={2}
+            label={({ value }) => formatChartValue(value)}
+            labelLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
             className="cursor-pointer outline-none"
             onClick={(item) => {
               const name = typeof item?.name === 'string' ? item.name : '';
