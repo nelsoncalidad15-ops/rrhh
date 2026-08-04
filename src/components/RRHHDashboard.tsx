@@ -18,7 +18,7 @@ import RRHHCollaboratorsView from './RRHHCollaboratorsView';
 import RRHHCalendarView from './RRHHCalendarView';
 import { FormacionDashboard } from './FormacionDashboard';
 import { RotacionDashboard } from './RotacionDashboard';
-import { DotacionDashboard } from './DotacionDashboard';
+import { NominaDashboard } from './NominaDashboard';
 import { EstandarOperacionalDashboard } from './EstandarOperacionalDashboard';
 
 interface RRHHDashboardProps {
@@ -179,7 +179,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       case 'rotacion':
         return <RotacionDashboard />;
       case 'dotacion':
-        return <DotacionDashboard />;
+        return <NominaDashboard />;
       case 'estandar_operacional':
         return <EstandarOperacionalDashboard data={estandarOperacional} />;
       default:
