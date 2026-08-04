@@ -71,6 +71,8 @@ type Filters = {
 };
 
 type ChartDatum = { name: string; value: number };
+type LeadershipScope = 'gerencia' | 'gerenciaSubgerencia';
+
 const FILTER_LABELS: Partial<Record<keyof Filters, string>> = {
   month: 'Corte',
   area: 'Área',
@@ -121,6 +123,13 @@ const normalizeSexo = (value?: string) => {
   if (normalized === 'M' || normalized === 'MASCULINO' || normalized === 'VARON') return 'Masculino';
   return MISSING;
 };
+const isLeadershipRecord = (record: NominaRecord, scope: LeadershipScope) => {
+  const hierarchy = normalizeText(record.jerarquia);
+  const isSubgerencia = hierarchy.includes('SUBGERENT');
+  const isGerencia = hierarchy.includes('GERENT') && !isSubgerencia;
+  return isGerencia || (scope === 'gerenciaSubgerencia' && isSubgerencia);
+};
+
 
 const normalizeGeneracion = (value?: string) => {
   const normalized = normalizeText(value);
@@ -245,6 +254,7 @@ const unitLabel = (key: string) => BUSINESS_UNITS.find((unit) => unit.key === ke
 export function NominaDashboard() {
   const { data, loading, error, updatedAt } = useNominaData();
   const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [leadershipScope, setLeadershipScope] = useState<LeadershipScope>('gerencia');
   const [chartFilterNotice, setChartFilterNotice] = useState<string | null>(null);
   const detailTableRef = useRef<HTMLElement>(null);
 
@@ -410,6 +420,29 @@ export function NominaDashboard() {
       ]
     };
   }, [baseRecords, filters.month, periodStart, referenceDate, selectedYear]);
+  const womenRepresentation = useMemo(() => {
+    const active = dashboard.active;
+    const leadership = active.filter((record) => isLeadershipRecord(record, leadershipScope));
+    const womenWorkforce = active.filter((record) => normalizeSexo(record.sexo) === 'Femenino').length;
+    const womenLeadership = leadership.filter((record) => normalizeSexo(record.sexo) === 'Femenino').length;
+    const unknownSex = active.filter((record) => normalizeSexo(record.sexo) === MISSING).length;
+
+    const workforceShare = active.length ? (womenWorkforce / active.length) * 100 : 0;
+    const leadershipShare = leadership.length ? (womenLeadership / leadership.length) * 100 : 0;
+    const ratio = leadership.length && workforceShare > 0 ? leadershipShare / workforceShare : null;
+    const scopeLabel = leadershipScope === 'gerencia' ? 'Gerencia' : 'Gerencia + Subgerencia';
+
+    const assessment = ratio === null
+      ? { label: 'Sin evaluación', tone: 'slate', message: 'No hay base suficiente para calcular el índice.' }
+      : ratio >= 0.8 && ratio <= 1.2
+        ? { label: 'Cumple completamente', tone: 'emerald', message: 'La representación de mujeres está dentro del rango objetivo de 0,80 a 1,20.' }
+        : (ratio >= 0.6 && ratio < 0.8) || (ratio > 1.2 && ratio <= 1.4)
+          ? { label: 'En camino', tone: 'amber', message: 'El índice está dentro del rango de evaluación parcial.' }
+          : { label: 'A revisar', tone: 'rose', message: 'El índice está fuera de los rangos de evaluación definidos.' };
+
+    return { activeCount: active.length, leadershipCount: leadership.length, womenWorkforce, womenLeadership, unknownSex, workforceShare, leadershipShare, ratio, scopeLabel, assessment };
+  }, [dashboard.active, leadershipScope]);
+
   const isExitDetail = filters.motivoEgreso !== ALL;
   const detailRecords = isExitDetail ? dashboard.exits : dashboard.active;
 
@@ -538,6 +571,43 @@ export function NominaDashboard() {
         <KpiCard label="Rotación" value={formatPercent(dashboard.turnover)} caption="Bajas / dotación promedio" icon={<CalendarDays size={18} />} accent="amber" />
         <KpiCard label="Antigüedad media" value={`${(dashboard.averageTenure / 12).toFixed(1)} a`} caption="Personal activo con fecha de ingreso" icon={<Table2 size={18} />} accent="violet" />
       </section>
+      <section className="glass-card border border-slate-200 !p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Evidencia para auditoría</p>
+            <h3 className="mt-1 text-base font-black text-slate-900">Representación de mujeres en puestos directivos</h3>
+            <p className="mt-1 text-[11px] text-slate-500">Índice = % de mujeres en el alcance seleccionado / % de mujeres en la dotación activa total.</p>
+          </div>
+          <div role="group" aria-label="Alcance de puestos directivos" className="inline-flex w-fit rounded-xl bg-slate-100 p-1 text-[10px] font-black uppercase tracking-wider">
+            <button type="button" onClick={() => setLeadershipScope('gerencia')} className={'rounded-lg px-3 py-2 transition ' + (leadershipScope === 'gerencia' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>Solo Gerencia</button>
+            <button type="button" onClick={() => setLeadershipScope('gerenciaSubgerencia')} className={'rounded-lg px-3 py-2 transition ' + (leadershipScope === 'gerenciaSubgerencia' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>Gerencia + Subgerencia</button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Índice de representación</p>
+            <p className="mt-1 text-3xl font-black text-slate-900">{womenRepresentation.ratio === null ? '—' : formatFte.format(womenRepresentation.ratio)}</p>
+            <p className="mt-1 text-[10px] font-medium text-slate-500">Cumple completamente: 0,80 a 1,20</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Mujeres en {womenRepresentation.scopeLabel}</p>
+            <p className="mt-1 text-2xl font-black text-slate-900">{formatPercent(womenRepresentation.leadershipShare)}</p>
+            <p className="mt-1 text-[10px] font-medium text-slate-500">{womenRepresentation.womenLeadership} de {womenRepresentation.leadershipCount} personas</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Mujeres en dotación total</p>
+            <p className="mt-1 text-2xl font-black text-slate-900">{formatPercent(womenRepresentation.workforceShare)}</p>
+            <p className="mt-1 text-[10px] font-medium text-slate-500">{womenRepresentation.womenWorkforce} de {womenRepresentation.activeCount} personas</p>
+          </div>
+        </div>
+
+        <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
+          <strong>{womenRepresentation.assessment.label}:</strong> {womenRepresentation.assessment.message}
+        </p>
+        <p className="mt-2 text-[10px] text-slate-500">Evaluación parcial: 0,60 a &lt;0,80 o &gt;1,20 a 1,40 · Base actual: {womenRepresentation.activeCount} personas activas · {womenRepresentation.unknownSex} sin sexo informado.</p>
+      </section>
+
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-[11px] text-indigo-800">
         <Filter size={14} className="shrink-0 text-indigo-600" />
