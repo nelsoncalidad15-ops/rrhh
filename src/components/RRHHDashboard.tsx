@@ -9,31 +9,34 @@ import {
   AlertCircle,
   ArrowLeft
 } from 'lucide-react';
-import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData, fetchCoursePhasesData } from '../services/dataService';
-import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact, CoursePhase } from '../types';
+import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData, fetchCoursePhasesData, fetchCareerPlanData } from '../services/dataService';
+import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact, CoursePhase, CareerPlanItem } from '../types';
 import { SkeletonLoader } from './DashboardUI';
 
 // Views
 import RRHHTalentView from './RRHHTalentView';
 import RRHHCollaboratorsView from './RRHHCollaboratorsView';
 import RRHHCalendarView from './RRHHCalendarView';
+import RRHHCareerPlanView from './RRHHCareerPlanView';
 
 interface RRHHDashboardProps {
   gradesUrl: string;
   relatorioUrl: string;
   contactsUrl: string;
   phasesUrl: string;
+  careerPlanUrl: string;
   onBack: () => void;
 }
 
-export type RRHHView = 'dashboard' | 'collaborators' | 'calendar';
+export type RRHHView = 'dashboard' | 'collaborators' | 'calendar' | 'career-plan';
 
-const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, phasesUrl, onBack }) => {
+const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, phasesUrl, careerPlanUrl, onBack }) => {
   const [view, setView] = useState<RRHHView>('dashboard');
   const [grades, setGrades] = useState<CourseGrade[]>([]);
   const [relatorio, setRelatorio] = useState<RelatorioItem[]>([]);
   const [contacts, setContacts] = useState<CollaboratorContact[]>([]);
   const [phases, setPhases] = useState<CoursePhase[]>([]);
+  const [careerPlan, setCareerPlan] = useState<CareerPlanItem[]>([]);
   const [loadingState, setLoadingState] = useState<LoadingState>(LoadingState.IDLE);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollabId, setSelectedCollabId] = useState<string | null>(null);
@@ -59,17 +62,19 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
 
       try {
-        const [gradesData, relatorioData, contactsData, phasesData] = await Promise.all([
+        const [gradesData, relatorioData, contactsData, phasesData, careerPlanData] = await Promise.all([
           fetchHRGradesData(gradesUrl),
           fetchHRRelatorioData(relatorioUrl),
           fetchHRContactsData(contactsUrl),
-          fetchCoursePhasesData(phasesUrl)
+          fetchCoursePhasesData(phasesUrl),
+          fetchCareerPlanData(careerPlanUrl).catch(() => [])
         ]);
         
         setGrades(gradesData);
         setRelatorio(relatorioData);
         setContacts(contactsData);
         setPhases(phasesData);
+        setCareerPlan(careerPlanData);
         setLoadingState(LoadingState.SUCCESS);
       } catch (error: any) {
         console.error("RRHHDashboard: Error loading HR data:", error);
@@ -78,7 +83,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
     };
     loadData();
-  }, [gradesUrl, relatorioUrl, retryCount]);
+  }, [gradesUrl, relatorioUrl, contactsUrl, phasesUrl, careerPlanUrl, retryCount]);
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
@@ -167,6 +172,8 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
             onCloseEventDetail={() => setSelectedCalendarEvent(null)}
           />
         );
+      case 'career-plan':
+        return <RRHHCareerPlanView items={careerPlan} searchQuery={searchQuery} />;
       default:
         return null;
     }
@@ -222,12 +229,18 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
                   icon={<Calendar size={20} strokeWidth={1.5} />}
                   label="Calendario"
                 />
+                <TabButton
+                  active={view === 'career-plan'}
+                  onClick={() => setView('career-plan')}
+                  icon={<Calendar size={20} strokeWidth={1.5} />}
+                  label="Plan de carrera"
+                />
               </nav>
               
               <div className="flex items-center gap-4">
                 <div className="w-1.5 h-6 bg-[#00B0F0] rounded-full shadow-sm shadow-[#00B0F0]/20" />
                 <h2 className="text-base font-semibold font-display tracking-tight text-[#001E50]">
-                  {view === 'dashboard' ? 'Gestión de Talento' : view === 'collaborators' ? 'Perfil de Colaboradores' : 'Calendario de Capacitación'}
+                  {view === 'dashboard' ? 'Gestión de Talento' : view === 'collaborators' ? 'Perfil de Colaboradores' : view === 'calendar' ? 'Calendario de Capacitación' : 'Plan de carrera'}
                 </h2>
               </div>
             </div>

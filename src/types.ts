@@ -40,3 +40,20 @@ export interface CourseGrade {
   icfByFunction?: Record<string, number>;
   coursesByFunction?: Record<string, Record<string, number>>;
 }
+
+export interface CareerPlanItem {
+  actividad: string;
+  provincia: string;
+  participante: string;
+  fechaAlta: string;
+  comienzo: string;
+  fin: string;
+  fechaLimite: string;
+  planificadoEjecutado: string;
+  valorPresencial: number;
+  valorVirtual: number;
+  personasCapacitadas: number;
+  cargaHoraria: number;
+  genero: string;
+  estado: string;
+}
