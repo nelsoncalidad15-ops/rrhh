@@ -521,5 +521,5 @@ function KPICard({ title, value, subtitle, icon, color, variant }: { title: stri
       {/* Decorative background element */}
       <div className={`absolute -bottom-10 -right-10 w-40 h-40 rounded-full ${color} opacity-[0.02] group-hover:scale-150 transition-transform duration-1000`} />
     </div>
-  );
+    );
 }

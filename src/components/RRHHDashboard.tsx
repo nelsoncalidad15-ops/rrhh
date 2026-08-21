@@ -8,8 +8,8 @@ import {
   GraduationCap,
   BarChart as BarChartIcon
 } from 'lucide-react';
-import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData, fetchCoursePhasesData, fetchEstandarOperacionalData } from '../services/dataService';
-import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact, CoursePhase, EstandarOperacionalItem } from '../types';
+import { fetchHRGradesData, fetchHRRelatorioData, fetchHRContactsData, fetchCoursePhasesData, fetchEstandarOperacionalData, fetchCareerPlanData } from '../services/dataService';
+import { CourseGrade, RelatorioItem, LoadingState, CollaboratorContact, CoursePhase, EstandarOperacionalItem, CareerPlanItem } from '../types';
 import { SkeletonLoader } from './DashboardUI';
 import RRHHTalentView from './RRHHTalentView';
 import RRHHCollaboratorsView from './RRHHCollaboratorsView';
@@ -20,6 +20,7 @@ import { FormacionDashboard } from './FormacionDashboard';
 import { RotacionDashboard } from './RotacionDashboard';
 import { NominaDashboard } from './NominaDashboard';
 import { EstandarOperacionalDashboard } from './EstandarOperacionalDashboard';
+import RRHHCareerPlanView from './RRHHCareerPlanView';
 
 interface RRHHDashboardProps {
   gradesUrl: string;
@@ -27,18 +28,20 @@ interface RRHHDashboardProps {
   contactsUrl: string;
   phasesUrl: string;
   estandarOperacionalUrl: string;
+  careerPlanUrl: string;
   onBack: () => void;
 }
 
-export type RRHHView = 'dashboard' | 'collaborators' | 'calendar' | 'formacion' | 'rotacion' | 'dotacion' | 'estandar_operacional';
+export type RRHHView = 'dashboard' | 'collaborators' | 'calendar' | 'formacion' | 'rotacion' | 'dotacion' | 'estandar_operacional' | 'career-plan';
 
-const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, phasesUrl, estandarOperacionalUrl, onBack }) => {
+const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, contactsUrl, phasesUrl, estandarOperacionalUrl, careerPlanUrl, onBack }) => {
   const [view, setView] = useState<RRHHView>('dashboard');
   const [grades, setGrades] = useState<CourseGrade[]>([]);
   const [relatorio, setRelatorio] = useState<RelatorioItem[]>([]);
   const [contacts, setContacts] = useState<CollaboratorContact[]>([]);
   const [phases, setPhases] = useState<CoursePhase[]>([]);
   const [estandarOperacional, setEstandarOperacional] = useState<EstandarOperacionalItem[]>([]);
+  const [careerPlan, setCareerPlan] = useState<CareerPlanItem[]>([]);
   const [loadingState, setLoadingState] = useState<LoadingState>(LoadingState.IDLE);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollabId, setSelectedCollabId] = useState<string | null>(null);
@@ -65,12 +68,13 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
 
       try {
-        const [gradesData, relatorioData, contactsData, phasesData, estandarOperacionalData] = await Promise.all([
+        const [gradesData, relatorioData, contactsData, phasesData, estandarOperacionalData, careerPlanData] = await Promise.all([
           fetchHRGradesData(gradesUrl),
           fetchHRRelatorioData(relatorioUrl),
           fetchHRContactsData(contactsUrl),
           fetchCoursePhasesData(phasesUrl),
-          fetchEstandarOperacionalData(estandarOperacionalUrl)
+          fetchEstandarOperacionalData(estandarOperacionalUrl),
+          fetchCareerPlanData(careerPlanUrl).catch(() => [])
         ]);
         
         setGrades(gradesData);
@@ -78,6 +82,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
         setContacts(contactsData);
         setPhases(phasesData);
         setEstandarOperacional(estandarOperacionalData);
+        setCareerPlan(careerPlanData);
         setLoadingState(LoadingState.SUCCESS);
       } catch (error: any) {
         console.error("RRHHDashboard: Error loading HR data:", error);
@@ -86,7 +91,7 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
       }
     };
     loadData();
-  }, [gradesUrl, relatorioUrl, contactsUrl, phasesUrl, estandarOperacionalUrl, retryCount]);
+  }, [gradesUrl, relatorioUrl, contactsUrl, phasesUrl, estandarOperacionalUrl, careerPlanUrl, retryCount]);
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
@@ -182,6 +187,8 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
         return <NominaDashboard />;
       case 'estandar_operacional':
         return <EstandarOperacionalDashboard data={estandarOperacional} />;
+      case 'career-plan':
+        return <RRHHCareerPlanView items={careerPlan} searchQuery={searchQuery} />;
       default:
         return null;
     }
@@ -261,12 +268,18 @@ const RRHHDashboard: React.FC<RRHHDashboardProps> = ({ gradesUrl, relatorioUrl, 
                   icon={<BarChartIcon size={20} strokeWidth={1.5} />}
                   label="Estándar Op."
                 />
+                <TabButton
+                  active={view === 'career-plan'}
+                  onClick={() => setView('career-plan')}
+                  icon={<Calendar size={20} strokeWidth={1.5} />}
+                  label="Plan de carrera"
+                />
               </nav>
               
               <div className="flex items-center gap-3 self-start lg:self-auto">
                 <div className="w-1.5 h-6 bg-[#00B0F0] rounded-full shadow-sm shadow-[#00B0F0]/20" />
                 <h2 className="text-sm sm:text-base font-semibold font-display tracking-tight text-[#001E50]">
-                  {view === 'dashboard' ? 'Gestión de Talento' : view === 'collaborators' ? 'Perfil de Colaboradores' : view === 'formacion' ? 'Indicadores de Formación' : view === 'rotacion' ? 'Rotación de Personal' : view === 'dotacion' ? 'Estructura de Dotación' : view === 'estandar_operacional' ? 'Estándar Operacional VW' : 'Calendario de Capacitación'}
+                  {view === 'career-plan' ? 'Plan de carrera' : view === 'dashboard' ? 'Gestión de Talento' : view === 'collaborators' ? 'Perfil de Colaboradores' : view === 'formacion' ? 'Indicadores de Formación' : view === 'rotacion' ? 'Rotación de Personal' : view === 'dotacion' ? 'Estructura de Dotación' : view === 'estandar_operacional' ? 'Estándar Operacional VW' : 'Calendario de Capacitación'}
                 </h2>
               </div>
             </div>

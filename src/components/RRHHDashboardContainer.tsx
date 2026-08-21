@@ -5,6 +5,7 @@ const RELATORIO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZu
 const CONTACTS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=55715729&single=true&output=csv';
 const PHASES_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=1692538205&single=true&output=csv';
 const ESTANDAR_OPERACIONAL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSR2x4kZurVkW4fVtQROHlRMB7v7i2osvf2-zazRo2RmluGi_7Y0mA46sAT85t5x_vd20ctEtKjtcJa/pub?gid=880320732&single=true&output=csv';
+const CAREER_PLAN_URL = 'https://docs.google.com/spreadsheets/d/14v21bofu7z2oMfKsGQs2C-p6ZgVgvucqrom4zdobI3k/export?format=csv&gid=1373663936';
 
 export default function RRHHDashboardContainer() {
   return (
@@ -15,6 +16,7 @@ export default function RRHHDashboardContainer() {
         contactsUrl={CONTACTS_URL}
         phasesUrl={PHASES_URL}
         estandarOperacionalUrl={ESTANDAR_OPERACIONAL_URL}
+        careerPlanUrl={CAREER_PLAN_URL}
         onBack={() => console.log('Back clicked')}
       />
     </div>

@@ -4,7 +4,7 @@ import {
   Filter,
   Download
 } from 'lucide-react';
-import { useRotacionData } from '../services/rotacionService';
+import { normalizeText, type NominaRecord, useNominaData } from '../services/nominaService';
 import {
   LineChart,
   Line,
@@ -43,8 +43,14 @@ type MonthlyStat = {
   bajas: number;
 };
 
+const isActiveAt = (record: NominaRecord, referenceDate: Date) => {
+  if (!record.fechaIngreso || record.fechaIngreso > referenceDate) return false;
+  if (record.fechaEgreso) return record.fechaEgreso > referenceDate;
+  return normalizeText(record.estado) !== 'INACTIVO';
+};
+
 export function RotacionDashboard() {
-  const { data, loading, error } = useRotacionData();
+  const { data, loading, error } = useNominaData();
 
   const [filters, setFilters] = useState({
     localidad: 'Todas',
@@ -77,7 +83,7 @@ export function RotacionDashboard() {
     const years = new Set<string>();
     data.forEach(d => {
       if (d.fechaIngreso) years.add(d.fechaIngreso.getFullYear().toString());
-      if (d.fechaNovedad) years.add(d.fechaNovedad.getFullYear().toString());
+      if (d.fechaEgreso) years.add(d.fechaEgreso.getFullYear().toString());
     });
 
     return {
@@ -116,22 +122,18 @@ export function RotacionDashboard() {
       }
 
       const endOfMonth = new Date(year, month + 1, 0);
-      const activosAlFinal = filtered.filter(d => {
-        if (!d.fechaIngreso || d.fechaIngreso > endOfMonth) return false;
-        if (d.estado === 'Activo') return true;
-        return d.fechaNovedad ? d.fechaNovedad > endOfMonth : false;
-      });
+      const activosAlFinal = filtered.filter(d => isActiveAt(d, endOfMonth));
 
       const bajasEnMes = filtered.filter(d =>
-        d.fechaNovedad &&
-        d.fechaNovedad.getFullYear() === year &&
-        d.fechaNovedad.getMonth() === month
+        d.fechaEgreso &&
+        d.fechaEgreso.getFullYear() === year &&
+        d.fechaEgreso.getMonth() === month
       );
 
-      const voluntarias = bajasEnMes.filter(d => (d.motivoNovedad || '').toLowerCase().includes('renuncia'));
+      const voluntarias = bajasEnMes.filter(d => normalizeText(d.motivoEgreso).includes('RENUNCIA'));
       const voluntariasTempranas = voluntarias.filter(d => {
-        if (!d.fechaIngreso || !d.fechaNovedad) return false;
-        const diffDays = (d.fechaNovedad.getTime() - d.fechaIngreso.getTime()) / (1000 * 60 * 60 * 24);
+        if (!d.fechaIngreso || !d.fechaEgreso) return false;
+        const diffDays = (d.fechaEgreso.getTime() - d.fechaIngreso.getTime()) / (1000 * 60 * 60 * 24);
         return diffDays < 365;
       });
 
@@ -163,18 +165,18 @@ export function RotacionDashboard() {
     const rotacionAcumuladaAnual = dotacionPromedioAnual > 0 ? (bajasTotalesAnuales / dotacionPromedioAnual) * 100 : 0;
 
     const bajasAnuales = filtered.filter(d => {
-      const enAno = d.fechaNovedad && d.fechaNovedad.getFullYear() === year;
+      const enAno = d.fechaEgreso && d.fechaEgreso.getFullYear() === year;
       if (!enAno) return false;
       if (filters.mes === 'Todas') return true;
       const monthIndex = MONTH_ORDER.findIndex(m => m === filters.mes.toLowerCase());
-      return d.fechaNovedad!.getMonth() === monthIndex;
+      return d.fechaEgreso!.getMonth() === monthIndex;
     });
 
     const motivesMap = new Map<string, number>();
     const areasMap = new Map<string, number>();
 
     bajasAnuales.forEach(d => {
-      const motivo = d.motivoNovedad || 'Sin especificar';
+      const motivo = d.motivoEgreso || 'Sin especificar';
       const area = d.area || 'Sin especificar';
       motivesMap.set(motivo, (motivesMap.get(motivo) || 0) + 1);
       areasMap.set(area, (areasMap.get(area) || 0) + 1);
@@ -192,13 +194,13 @@ export function RotacionDashboard() {
     if (chartFilter?.type === 'mes') {
       const monthIndex = MONTH_ORDER.findIndex(m => m.substring(0, 3).toUpperCase() === chartFilter.value);
       peopleData = filtered.filter(d =>
-        d.fechaNovedad &&
-        d.fechaNovedad.getFullYear() === year &&
-        d.fechaNovedad.getMonth() === monthIndex
+        d.fechaEgreso &&
+        d.fechaEgreso.getFullYear() === year &&
+        d.fechaEgreso.getMonth() === monthIndex
       );
     }
     if (chartFilter?.type === 'motivo') {
-      peopleData = bajasAnuales.filter(d => (d.motivoNovedad || 'Sin especificar') === chartFilter.value);
+      peopleData = bajasAnuales.filter(d => (d.motivoEgreso || 'Sin especificar') === chartFilter.value);
     }
     if (chartFilter?.type === 'area') {
       peopleData = bajasAnuales.filter(d => (d.area || 'Sin especificar') === chartFilter.value);
@@ -268,7 +270,7 @@ export function RotacionDashboard() {
             </div>
             <div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">Rotación</h2>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Indicadores de RRHH</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Indicadores desde la nómina de Dotación</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">

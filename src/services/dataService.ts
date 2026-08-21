@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { CourseGrade, RelatorioItem, CollaboratorContact, CoursePhase, EstandarOperacionalItem } from '../types';
+import { CourseGrade, RelatorioItem, CollaboratorContact, CoursePhase, EstandarOperacionalItem, CareerPlanItem } from '../types';
 
 export const normalizeKey = (key: string) => {
   if (!key) return '';
@@ -364,6 +364,57 @@ export const fetchEstandarOperacionalData = async (url: string): Promise<Estanda
     });
   } catch (error) {
     console.error("Error fetching estandar operacional data:", error);
+    throw error;
+  }
+};
+
+const parseAmount = (value: unknown) => {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^0-9.-]/g, '');
+  return Number.parseFloat(normalized) || 0;
+};
+
+export const fetchCareerPlanData = async (url: string): Promise<CareerPlanItem[]> => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('No se pudo acceder a la hoja de Plan de carrera.');
+    const csvText = await response.text();
+
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data as Record<string, unknown>[];
+          const items = rows
+            .map(row => ({
+              actividad: String(getRowValue(row, 'Actividad') ?? '').trim(),
+              provincia: String(getRowValue(row, 'Provincia') ?? '').trim(),
+              participante: String(getRowValue(row, 'Participantes', 'Participante', 'Colaborador') ?? '').trim(),
+              fechaAlta: String(getRowValue(row, 'Fecha alta en funcion', 'Fecha alta en función', 'Fecha de alta') ?? '').trim(),
+              comienzo: String(getRowValue(row, 'Comienzo') ?? '').trim(),
+              fin: String(getRowValue(row, 'Fin proyectado', 'Fin') ?? '').trim(),
+              fechaLimite: String(getRowValue(row, 'Fecha limite', 'Fecha límite') ?? '').trim(),
+              planificadoEjecutado: String(getRowValue(row, 'Planeado/Ejecutado', 'Planificado/Ejecutado') ?? '').trim(),
+              valorPresencial: parseAmount(getRowValue(row, 'Valor Presencial')),
+              valorVirtual: parseAmount(getRowValue(row, 'Valor Virtual')),
+              personasCapacitadas: parseAmount(getRowValue(row, 'Personas Capacitadas')),
+              cargaHoraria: parseAmount(getRowValue(row, 'Carga horaria')),
+              genero: String(getRowValue(row, 'Genero', 'Género') ?? '').trim(),
+              estado: String(getRowValue(row, 'Estado') ?? '').trim(),
+              muestra: String(getRowValue(row, 'Muestra') ?? '').trim()
+            }))
+            .filter(item => (item.actividad || item.participante) && item.muestra.toLowerCase() !== 'no');
+          resolve(items);
+        },
+        error: error => reject(error)
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching career plan data:', error);
     throw error;
   }
 };
